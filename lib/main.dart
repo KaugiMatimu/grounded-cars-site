@@ -7,9 +7,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:async';
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
+import 'file_utils_stub.dart' if (dart.library.io) 'file_utils_io.dart';
+
+const Color kAppPrimaryColor = Color(0xFF4A6D8C);
+const Color kAppSecondaryColor = Color(0xFF7A8A98);
+const Color kAppSuccessColor = Color(0xFF3D7A65);
+const Color kAppWarningColor = Color(0xFF967E5F);
+const Color kAppErrorColor = Color(0xFF8D3434);
+const Color kAppBackgroundColor = Color(0xFFF2F4F7);
+const Color kAppCardColor = Color(0xFFF9FBFC);
+const Color kAppHeaderTextColor = Color(0xFF1F2937);
+const Color kAppBodyTextColor = Color(0xFF4B5563);
+const Color kAppMutedTextColor = Color(0xFF6B7280);
+const Color kAppLightAccentColor = Color(0xFF8FA6BE);
 
 enum AppPage { home, services, serviceDetails, register, login, manageListings, requestService, admin }
 
@@ -435,10 +448,37 @@ class GroundedCarsApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Grounded Cars Ke | Discover and List Grounded Cars in Kenya Effortlessly',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0081C9)),
+      theme: ThemeData.light(useMaterial3: true).copyWith(
+        colorScheme: const ColorScheme(
+          brightness: Brightness.light,
+          primary: kAppPrimaryColor,
+          onPrimary: Colors.white,
+          secondary: kAppSecondaryColor,
+          onSecondary: Colors.white,
+          error: kAppErrorColor,
+          onError: Colors.white,
+          background: kAppBackgroundColor,
+          onBackground: kAppHeaderTextColor,
+          surface: kAppCardColor,
+          onSurface: kAppHeaderTextColor,
+        ),
+        scaffoldBackgroundColor: kAppBackgroundColor,
+        cardColor: kAppCardColor,
+        canvasColor: kAppCardColor,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: kAppBackgroundColor,
+          foregroundColor: kAppHeaderTextColor,
+          elevation: 0,
+          iconTheme: IconThemeData(color: kAppHeaderTextColor),
+          titleTextStyle: TextStyle(color: kAppHeaderTextColor, fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+        textTheme: ThemeData.light().textTheme.apply(
+              bodyColor: kAppHeaderTextColor,
+              displayColor: kAppHeaderTextColor,
+              fontFamily: 'Roboto',
+            ),
+        iconTheme: const IconThemeData(color: kAppHeaderTextColor),
         useMaterial3: true,
-        fontFamily: 'Roboto',
       ),
       home: const GroundedCarsHomePage(),
     );
@@ -548,6 +588,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   ];
   String _selectedListingPackage = 'Free Package';
   bool _isLoading = false;
+  bool _isUploadingImages = false;
 
   final TextEditingController _serviceTypeController = TextEditingController();
   final TextEditingController _serviceLocationController = TextEditingController();
@@ -558,8 +599,26 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   final TextEditingController _servicePreferredDateTimeController = TextEditingController();
   final List<User> _users = [];
   final List<PaymentRecord> _paymentRecords = [];
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool get _isAdminUser => _currentUser?.isAdmin == true;
+
+  bool _isMobile(BuildContext context) => MediaQuery.of(context).size.width < 900;
+
+  int _responsiveColumns(BuildContext context, {int desktop = 4}) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 600) return 1;
+    if (width < 900) return 2;
+    if (width < 1200) return 3;
+    return desktop;
+  }
+
+  EdgeInsets _responsiveSectionPadding(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 600) return const EdgeInsets.symmetric(horizontal: 16, vertical: 24);
+    if (width < 900) return const EdgeInsets.symmetric(horizontal: 24, vertical: 32);
+    return const EdgeInsets.symmetric(horizontal: 40, vertical: 40);
+  }
 
   @override
   void initState() {
@@ -574,7 +633,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     final adminUser = User(
       fullName: 'System Admin',
       email: 'admin@groundedcars.co.ke',
-      phone: '+254700000000',
+      phone: '+254719838935',
       location: 'Nairobi',
       isAdmin: true,
     );
@@ -583,16 +642,21 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = _isMobile(context);
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: isMobile ? _buildNavigationDrawer() : null,
       floatingActionButton: _buildWhatsAppButton(),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildNavigationBar(),
-            _buildPageContent(),
-          ],
-        ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildNavigationBar(),
+          Expanded(
+            child: SingleChildScrollView(
+              child: _buildPageContent(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -605,7 +669,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           throw Exception('Could not launch $url');
         }
       },
-      backgroundColor: const Color(0xFF25D366),
+      backgroundColor: kAppSuccessColor,
       elevation: 6,
       child: SvgPicture.string(
         '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="white" d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.1 0-65.6-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.6-30.6-37.9-3.2-5.5-.3-8.5 2.4-11.2 2.5-2.6 5.5-6.5 8.3-9.8 2.8-3.2 3.7-5.5 5.5-9.3 1.9-3.7.9-6.9-.5-9.8-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.8 23.5 9.2 31.5 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>''',
@@ -616,95 +680,227 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildNavigationBar() {
+    final isMobile = _isMobile(context);
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-          color: Colors.white,
-          child: Row(
-            children: [
-              SvgPicture.asset(
-                'public/img/logo/logo.svg',
-                height: 40,
-                placeholderBuilder: (context) => const SizedBox(
-                  height: 40,
-                  width: 40,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-              const SizedBox(width: 40),
-              _buildNavButton('Home', AppPage.home),
-              _buildNavButton('Services', AppPage.services),
-              _buildNavButton('My Listings', AppPage.manageListings),
-              _buildNavButton('Request Service', AppPage.requestService),
-              if (_isAdminUser) _buildNavButton('Admin', AppPage.admin),
-              const Spacer(),
-              if (_currentUser != null)
-                Row(
-                  children: [
-                    Text('Hello, ${_currentUser!.fullName}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 20),
-                    ElevatedButton(
-                    onPressed: () async {
-                      await FirebaseAuth.instance.signOut();
-                      setState(() {
-                        _currentUser = null;
-                        _selectedPage = AppPage.home;
-                      });
-                    },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E88E5),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () => setState(() => _selectedPage = AppPage.login),
-                      child: const Text('Sign In'),
-                    ),
-                    const SizedBox(width: 12),
-                    OutlinedButton(
-                      onPressed: () => setState(() => _selectedPage = AppPage.register),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF1E88E5),
-                        side: const BorderSide(color: Color(0xFF1E88E5)),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: const Text('Sign Up'),
-                    ),
-                  ],
-                ),
             ],
           ),
-        ),
-        Container(
-          width: double.infinity,
-          color: const Color(0xFFEEF7F1),
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildWhatsAppGroupButton(
-                label: 'Join Group A',
-                url: 'https://chat.whatsapp.com/INBzE6XzEkxHLbukiutVnH',
-              ),
-              const SizedBox(width: 16),
-              _buildWhatsAppGroupButton(
-                label: 'Join Group B',
-                url: 'https://chat.whatsapp.com/Ep1RHz89pxU3kQNuEO8gyO',
-              ),
-            ],
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 40, vertical: 15),
+            child: isMobile
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      SvgPicture.asset(
+                        'public/img/logo/logo.svg',
+                        height: 60,
+                        placeholderBuilder: (context) => const SizedBox(
+                          height: 60,
+                          width: 60,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.menu),
+                        color: kAppPrimaryColor,
+                        onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                        tooltip: 'Open navigation menu',
+                      ),
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SvgPicture.asset(
+                        'public/img/logo/logo.svg',
+                        height: 60,
+                        placeholderBuilder: (context) => const SizedBox(
+                          height: 60,
+                          width: 60,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 16,
+                          runSpacing: 12,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            _buildNavButton('Home', AppPage.home),
+                            _buildNavButton('Services', AppPage.services),
+                            _buildNavButton('My Listings', AppPage.manageListings),
+                            _buildNavButton('Request Service', AppPage.requestService),
+                            if (_isAdminUser) _buildNavButton('Admin', AppPage.admin),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      if (_currentUser != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Hello, ${_currentUser!.fullName}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: () async {
+                                await FirebaseAuth.instance.signOut();
+                                setState(() {
+                                  _currentUser = null;
+                                  _selectedPage = AppPage.home;
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kAppPrimaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: const Text('Logout'),
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () => setState(() => _selectedPage = AppPage.login),
+                              child: const Text('Sign In'),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton(
+                              onPressed: () => setState(() => _selectedPage = AppPage.register),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: kAppPrimaryColor,
+                                side: const BorderSide(color: kAppPrimaryColor),
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: const Text('Sign Up'),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildNavigationDrawer() {
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Row(
+                children: [
+                  SvgPicture.asset(
+                    'public/img/logo/logo.svg',
+                    height: 40,
+                    placeholderBuilder: (context) => const SizedBox(
+                      height: 40,
+                      width: 40,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Grounded Cars', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            _buildDrawerNavTile('Home', AppPage.home),
+            _buildDrawerNavTile('Services', AppPage.services),
+            _buildDrawerNavTile('My Listings', AppPage.manageListings),
+            _buildDrawerNavTile('Request Service', AppPage.requestService),
+            if (_isAdminUser) _buildDrawerNavTile('Admin', AppPage.admin),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: _currentUser != null
+                  ? ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await FirebaseAuth.instance.signOut();
+                        setState(() {
+                          _currentUser = null;
+                          _selectedPage = AppPage.home;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kAppPrimaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Logout'),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            setState(() => _selectedPage = AppPage.login);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kAppPrimaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text('Sign In'),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            setState(() => _selectedPage = AppPage.register);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kAppPrimaryColor,
+                            side: const BorderSide(color: kAppPrimaryColor),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text('Sign Up'),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerNavTile(String label, AppPage page) {
+    final bool active = _selectedPage == page;
+    return ListTile(
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: active ? FontWeight.bold : FontWeight.normal,
+          color: active ? kAppLightAccentColor : Colors.white70,
+        ),
+      ),
+      onTap: () {
+        Navigator.of(context).pop();
+        setState(() => _selectedPage = page);
+      },
     );
   }
 
@@ -713,14 +909,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: TextButton(
-        onPressed: () => setState(() => _selectedPage = page),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontWeight: active ? FontWeight.bold : FontWeight.normal,
-            color: active ? const Color(0xFF1E88E5) : Colors.black87,
-          ),
+        style: TextButton.styleFrom(
+          foregroundColor: active ? kAppPrimaryColor : kAppBodyTextColor,
+          textStyle: TextStyle(fontWeight: active ? FontWeight.bold : FontWeight.normal),
         ),
+        onPressed: () => setState(() => _selectedPage = page),
+        child: Text(label),
       ),
     );
   }
@@ -736,7 +930,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       icon: const Icon(Icons.chat, color: Colors.white),
       label: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF25D366),
+        backgroundColor: kAppSuccessColor,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 0,
@@ -783,9 +977,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildHeroSection(),
+            _buildServicesSection(),
             _buildFilterSection(),
             _buildCarListingsSection(),
-            _buildServicesSection(),
             _buildSellRentSection(),
             _buildWhyChooseSection(),
             _buildFooter(),
@@ -818,6 +1012,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 780),
           child: Card(
+            color: kAppCardColor,
             elevation: 8,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
@@ -827,13 +1022,13 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 children: [
                   Row(
                     children: const [
-                      Icon(Icons.person_add_alt_1, color: Color(0xFF1E88E5), size: 32),
+                      Icon(Icons.person_add_alt_1, color: kAppPrimaryColor, size: 32),
                       SizedBox(width: 14),
                       Text('Sign Up', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  const Text('Join GroundedCars and start listing, buying, and requesting services with ease.', style: TextStyle(fontSize: 16, color: Colors.black54)),
+                  const Text('Join GroundedCars and start listing, buying, and requesting services with ease.', style: TextStyle(fontSize: 16, color: kAppBodyTextColor)),
                   const SizedBox(height: 30),
                   Form(
                     key: _registerFormKey,
@@ -859,14 +1054,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () => setState(() => _selectedPage = AppPage.login),
-                            child: const Text('Already have an account? Sign in', style: TextStyle(color: Color(0xFF1E88E5))),
+                            child: const Text('Already have an account? Sign in', style: TextStyle(color: kAppPrimaryColor)),
                           ),
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
                           onPressed: _isLoading ? null : _submitRegisterForm,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1E88E5),
+                            backgroundColor: kAppPrimaryColor,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -897,6 +1092,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: Card(
+            color: kAppCardColor,
             elevation: 8,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
@@ -906,13 +1102,13 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 children: [
                   Row(
                     children: const [
-                      Icon(Icons.login, color: Color(0xFF1E88E5), size: 32),
+                      Icon(Icons.login, color: kAppPrimaryColor, size: 32),
                       SizedBox(width: 14),
                       Text('Sign In', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  const Text('Access your GroundedCars account to manage listings and request services.', style: TextStyle(fontSize: 16, color: Colors.black54)),
+                  const Text('Access your GroundedCars account to manage listings and request services.', style: TextStyle(fontSize: 16, color: kAppBodyTextColor)),
                   const SizedBox(height: 30),
                   Form(
                     key: _loginFormKey,
@@ -925,14 +1121,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () => setState(() => _selectedPage = AppPage.register),
-                            child: const Text('Need an account? Sign up', style: TextStyle(color: Color(0xFF1E88E5))),
+                            child: const Text('Need an account? Sign up', style: TextStyle(color: kAppPrimaryColor)),
                           ),
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
                           onPressed: _isLoading ? null : _submitLoginForm,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1E88E5),
+                            backgroundColor: kAppPrimaryColor,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1000,21 +1196,21 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           Row(
             children: _listingPackages.map((pkg) => Expanded(
               child: Card(
-                color: pkg.isFeatured ? const Color(0xFFE3F2FD) : Colors.grey.shade100,
+                color: pkg.isFeatured ? Color(0xFFEAF4FF) : Colors.grey.shade100,
                 margin: const EdgeInsets.only(right: 12),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kAppHeaderTextColor)),
                       const SizedBox(height: 8),
-                      Text(pkg.price, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                      Text(pkg.price, style: const TextStyle(fontSize: 14, color: kAppHeaderTextColor)),
                       const SizedBox(height: 4),
-                      Text(pkg.description, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      Text(pkg.description, style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
                       const SizedBox(height: 8),
-                      Text('Max Listings: ${pkg.maxListings}', style: const TextStyle(fontSize: 12)),
-                      Text('Duration: ${pkg.durationDays} days', style: const TextStyle(fontSize: 12)),
+                      Text('Max Listings: ${pkg.maxListings}', style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
+                      Text('Duration: ${pkg.durationDays} days', style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
                     ],
                   ),
                 ),
@@ -1093,28 +1289,18 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   padding: const EdgeInsets.only(top: 8, bottom: 16),
                   child: Text(
                     _listingPackages.firstWhere((pkg) => pkg.name == _selectedListingPackage).description,
-                    style: const TextStyle(color: Colors.black54, fontSize: 12),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ),
                 _buildTextField(controller: _listingDescriptionController, label: 'Description', validator: _requiredValidator),
                 const SizedBox(height: 16),
                 _buildImageUrlEntry(),
-                if (_listingImageUrls.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _listingImageUrls.map((url) => Chip(
-                        label: Text(url, overflow: TextOverflow.ellipsis),
-                        onDeleted: () => setState(() => _listingImageUrls.remove(url)),
-                      )).toList(),
-                    ),
-                  ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _submitListingForm,
-                  child: const Text('Save Listing'),
+                  onPressed: _isUploadingImages ? null : _submitListingForm,
+                  child: _isUploadingImages
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Save Listing'),
                 ),
               ],
             ),
@@ -1125,48 +1311,62 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          ..._listings.map((listing) => Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (listing.imageUrls.isNotEmpty)
-                        Image.network(
-                          listing.imageUrls.first,
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const SizedBox(height: 180, child: Center(child: Text('Image unavailable'))),
-                        ),
-                      const SizedBox(height: 16),
-                      Text(listing.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      const SizedBox(height: 8),
-                      Text('${listing.year} ${listing.make} ${listing.model}'),
-                      Text('Status: ${listing.status}'),
-                      Text('Package: ${listing.packageType}'),
-                      if (listing.isFeatured) Text('Featured listing', style: const TextStyle(color: Color(0xFF1E88E5), fontWeight: FontWeight.w600)),
-                      Text('Duration: ${listing.listingDurationDays} days'),
-                      Text('Price: ${listing.price}'),
-                      Text('Mileage: ${listing.mileage}'),
-                      Text('Condition: ${listing.condition}'),
-                      Text('Transmission: ${listing.transmission}'),
-                      Text('Fuel: ${listing.fuelType}'),
-                      Text('Location: ${listing.location}'),
-                      if (listing.pricePerDay.isNotEmpty) Text('Price/Day: ${listing.pricePerDay}'),
-                      if (listing.availability.isNotEmpty) Text('Availability: ${listing.availability}'),
-                      if (listing.features.isNotEmpty) Text('Features: ${listing.features}'),
-                      if (listing.pickupLocation.isNotEmpty) Text('Pickup: ${listing.pickupLocation}'),
-                      if (listing.deliveryOption.isNotEmpty) Text('Delivery: ${listing.deliveryOption}'),
-                      const SizedBox(height: 8),
-                      Text(listing.description),
-                      const SizedBox(height: 8),
-                      Text('Contact: ${listing.ownerPhone}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ))
+          if (_listings.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Text('No listings have been created yet.', style: TextStyle(color: kAppBodyTextColor)),
+            )
+          else
+            GridView.count(
+              crossAxisCount: _responsiveColumns(context, desktop: 4),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.75,
+              children: _listings.map((listing) => Card(
+                    color: kAppCardColor,
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (listing.imageUrls.isNotEmpty)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                listing.imageUrls.first,
+                                height: 120,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => const SizedBox(height: 120, child: Center(child: Text('Image unavailable'))),
+                              ),
+                            ),
+                          if (listing.imageUrls.isNotEmpty) const SizedBox(height: 12),
+                          Text(listing.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 8),
+                          Text('${listing.year} ${listing.make} ${listing.model}', style: const TextStyle(fontSize: 13, color: kAppBodyTextColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 8),
+                          Text('Status: ${listing.status}', style: const TextStyle(fontSize: 13)),
+                          Text('Package: ${listing.packageType}', style: const TextStyle(fontSize: 13)),
+                          if (listing.isFeatured)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 4),
+                              child: Text('Featured listing', style: TextStyle(color: kAppPrimaryColor, fontWeight: FontWeight.w600, fontSize: 13)),
+                            ),
+                          const SizedBox(height: 8),
+                          Text('Price: ${listing.price}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                          const SizedBox(height: 4),
+                          Text('Mileage: ${listing.mileage}', style: const TextStyle(fontSize: 13)),
+                          Text('Condition: ${listing.condition}', style: const TextStyle(fontSize: 13)),
+                          const Spacer(),
+                          Text('Contact: ${listing.ownerPhone}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  )).toList(),
+            )
         ],
       ),
     );
@@ -1224,10 +1424,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 Tab(text: 'Package Management'),
                 Tab(text: 'Payment Tracking'),
               ],
-              labelColor: Color(0xFF1E88E5),
-              unselectedLabelColor: Colors.black54,
-              indicatorColor: Color(0xFF1E88E5),
-              labelStyle: TextStyle(fontWeight: FontWeight.bold),
+              labelColor: kAppLightAccentColor,
+              unselectedLabelColor: Colors.white70,
+              indicatorColor: kAppLightAccentColor,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -1297,7 +1497,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                                       padding: const EdgeInsets.only(left: 8.0),
                                       child: Chip(
                                         label: const Text('FEATURED', style: TextStyle(fontSize: 10, color: Colors.white)),
-                                        backgroundColor: Colors.amber.shade700,
+                                        backgroundColor: kAppWarningColor,
                                         visualDensity: VisualDensity.compact,
                                       ),
                                     ),
@@ -1313,7 +1513,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                                   if (listing.approvalStatus == 'Pending')
                                     ElevatedButton(
                                       onPressed: () => _updateListing(listing.copyWith(approvalStatus: 'Approved')),
-                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                                      style: ElevatedButton.styleFrom(backgroundColor: kAppSuccessColor, foregroundColor: Colors.white),
                                       child: const Text('Approve'),
                                     ),
                                   if (listing.approvalStatus == 'Pending')
@@ -1327,12 +1527,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                                       icon: Icon(listing.isFeatured ? Icons.star : Icons.star_border),
                                       label: Text(listing.isFeatured ? 'Unfeature' : 'Promote / Feature'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: listing.isFeatured ? Colors.grey : Colors.amber.shade700,
+                                        backgroundColor: listing.isFeatured ? Colors.grey : kAppWarningColor,
                                         foregroundColor: Colors.white,
                                       ),
                                     ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    icon: const Icon(Icons.delete, color: kAppErrorColor),
                                     onPressed: () => _deleteListing(listing),
                                   ),
                                 ],
@@ -1353,9 +1553,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
   Widget _buildStatusChip(String status) {
     Color color = Colors.grey;
-    if (status == 'Approved') color = Colors.green;
-    if (status == 'Rejected') color = Colors.red;
-    if (status == 'Pending') color = Colors.orange;
+    if (status == 'Approved') color = kAppSuccessColor;
+    if (status == 'Rejected') color = kAppErrorColor;
+    if (status == 'Pending') color = kAppWarningColor;
 
     return Chip(
       label: Text(status.toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white)),
@@ -1380,7 +1580,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 child: Row(
                   children: [
                     const CircleAvatar(
-                      backgroundColor: Color(0xFF1E88E5),
+                      backgroundColor: kAppPrimaryColor,
                       child: Icon(Icons.person, color: Colors.white),
                     ),
                     const SizedBox(width: 16),
@@ -1389,19 +1589,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text(user.email, style: const TextStyle(color: Colors.black54)),
-                          Text(user.phone, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+                          Text(user.email, style: const TextStyle(color: Colors.white70)),
+                          Text(user.phone, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                           Row(
                             children: [
                               Chip(
                                 label: Text(user.isAdmin ? 'ADMIN' : 'USER', style: const TextStyle(fontSize: 10)),
-                                backgroundColor: user.isAdmin ? Colors.blue.shade100 : Colors.grey.shade100,
+                                backgroundColor: user.isAdmin ? kAppPrimaryColor.withOpacity(0.18) : Colors.grey.shade100,
                                 visualDensity: VisualDensity.compact,
                               ),
                               const SizedBox(width: 8),
                               Chip(
                                 label: Text(user.active ? 'ACTIVE' : 'INACTIVE', style: const TextStyle(fontSize: 10)),
-                                backgroundColor: user.active ? Colors.green.shade100 : Colors.red.shade100,
+                                backgroundColor: user.active ? kAppSuccessColor.withOpacity(0.18) : kAppErrorColor.withOpacity(0.18),
                                 visualDensity: VisualDensity.compact,
                               ),
                             ],
@@ -1415,8 +1615,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         ElevatedButton(
                           onPressed: () => _updateUser(user.copyWith(active: !user.active)),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: user.active ? Colors.red.shade50 : Colors.green.shade50,
-                            foregroundColor: user.active ? Colors.red : Colors.green,
+                            backgroundColor: user.active ? kAppErrorColor.withOpacity(0.12) : kAppSuccessColor.withOpacity(0.12),
+                            foregroundColor: user.active ? kAppErrorColor : kAppSuccessColor,
                             elevation: 0,
                           ),
                           child: Text(user.active ? 'Deactivate' : 'Activate'),
@@ -1428,7 +1628,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           ),
                         if (user.email != 'admin@groundedcars.co.ke')
                           IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
+                            icon: const Icon(Icons.delete, color: kAppErrorColor),
                             onPressed: () => _deleteUser(user),
                           ),
                       ],
@@ -1496,7 +1696,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         ],
                       ),
                       const Divider(height: 24),
-                      Text('Description: ${request.description}', style: const TextStyle(color: Colors.black87)),
+                      Text('Description: ${request.description}', style: const TextStyle(color: Colors.white70)),
                       const SizedBox(height: 16),
                       Wrap(
                         spacing: 12,
@@ -1509,7 +1709,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           if (request.status == 'In Progress')
                             ElevatedButton(
                               onPressed: () => _updateServiceRequest(request.copyWith(status: 'Completed')),
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                              style: ElevatedButton.styleFrom(backgroundColor: kAppSuccessColor, foregroundColor: Colors.white),
                               child: const Text('Mark Completed'),
                             ),
                           if (request.status != 'Completed' && request.status != 'Rejected')
@@ -1518,7 +1718,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                               child: const Text('Reject'),
                             ),
                           IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
+                            icon: const Icon(Icons.delete, color: kAppErrorColor),
                             onPressed: () => _deleteServiceRequest(request),
                           ),
                         ],
@@ -1535,10 +1735,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
   Widget _buildRequestStatusChip(String status) {
     Color color = Colors.grey;
-    if (status == 'Completed') color = Colors.green;
-    if (status == 'In Progress') color = Colors.blue;
-    if (status == 'Rejected') color = Colors.red;
-    if (status == 'Assigned') color = Colors.orange;
+    if (status == 'Completed') color = kAppSuccessColor;
+    if (status == 'In Progress') color = kAppPrimaryColor;
+    if (status == 'Rejected') color = kAppErrorColor;
+    if (status == 'Assigned') color = kAppWarningColor;
 
     return Chip(
       label: Text(status.toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white)),
@@ -1552,9 +1752,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       padding: const EdgeInsets.only(bottom: 4.0),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: Colors.black54),
+          Icon(icon, size: 14, color: Colors.white70),
           const SizedBox(width: 8),
-          Flexible(child: Text(text, style: const TextStyle(fontSize: 13))),
+          Flexible(child: Text(text, style: const TextStyle(fontSize: 13, color: Colors.white70))),
         ],
       ),
     );
@@ -1593,10 +1793,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             itemBuilder: (context, index) {
               final pkg = _listingPackages[index];
               return Card(
-                color: pkg.isFeatured ? const Color(0xFFE3F2FD) : Colors.white,
+                color: pkg.isFeatured ? kAppSecondaryColor : kAppCardColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: pkg.isFeatured ? const Color(0xFF1E88E5) : Colors.grey.shade200),
+                  side: BorderSide(color: pkg.isFeatured ? kAppLightAccentColor : Colors.white12),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -1607,13 +1807,13 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                          if (pkg.isFeatured) const Icon(Icons.star, color: Colors.amber, size: 20),
+                          if (pkg.isFeatured) const Icon(Icons.star, color: kAppWarningColor, size: 20),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(pkg.price, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E88E5))),
+                      Text(pkg.price, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kAppPrimaryColor)),
                       const SizedBox(height: 4),
-                      Text(pkg.description, style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      Text(pkg.description, style: const TextStyle(fontSize: 12, color: Colors.white70), maxLines: 2, overflow: TextOverflow.ellipsis),
                       const Spacer(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
@@ -1623,7 +1823,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                             child: const Text('Edit'),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                            icon: const Icon(Icons.delete, color: kAppErrorColor, size: 20),
                             onPressed: () => setState(() {
                               _listingPackages.removeAt(index);
                             }),
@@ -1731,10 +1931,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: payment.status == 'Completed' ? Colors.green.shade100 : Colors.orange.shade100,
+                            color: payment.status == 'Completed' ? kAppSuccessColor.withOpacity(0.18) : kAppWarningColor.withOpacity(0.18),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(payment.status, style: TextStyle(color: payment.status == 'Completed' ? Colors.green.shade900 : Colors.orange.shade900, fontSize: 12, fontWeight: FontWeight.bold)),
+                          child: Text(payment.status, style: TextStyle(color: payment.status == 'Completed' ? kAppSuccessColor : kAppWarningColor, fontSize: 12, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ]);
@@ -1818,10 +2018,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                       Text('Location: ${request.location}'),
                       const SizedBox(height: 8),
                       Text('Car: ${request.carDetails}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text('Preferred: ${request.preferredDateTime}', style: const TextStyle(color: Colors.black54)),
+                      Text('Preferred: ${request.preferredDateTime}', style: const TextStyle(color: Colors.white70)),
                       const SizedBox(height: 8),
-                      Text('Assigned to: ${request.assignedTo}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text('Status: ${request.status}', style: const TextStyle(color: Colors.black54)),
+                      Text('Assigned to: ${request.assignedTo}', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white)),
+                      Text('Status: ${request.status}', style: const TextStyle(color: Colors.white70)),
                       const SizedBox(height: 8),
                       Text('Contact: ${request.requesterName} • ${request.requesterPhone}', style: const TextStyle(fontWeight: FontWeight.w600)),
                     ],
@@ -1843,11 +2043,15 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             children: [
               const Text(
                 'Services Marketplace',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
               ),
               const Spacer(),
               TextButton(
                 onPressed: () => setState(() => _selectedPage = AppPage.home),
+                style: TextButton.styleFrom(
+                  foregroundColor: kAppPrimaryColor,
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 child: const Text('Back to Home'),
               ),
             ],
@@ -1855,16 +2059,16 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           const SizedBox(height: 24),
           const Text(
             'Book on-demand mobile automotive services to your home or office.',
-            style: TextStyle(fontSize: 16, color: Colors.black54),
+            style: TextStyle(fontSize: 16, color: kAppBodyTextColor),
           ),
           const SizedBox(height: 30),
           GridView.count(
-            crossAxisCount: 4,
+            crossAxisCount: _responsiveColumns(context, desktop: 4),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 20,
             crossAxisSpacing: 20,
-            childAspectRatio: 0.9,
+            childAspectRatio: _isMobile(context) ? 1.1 : 0.9,
             children: _serviceDefinitions.map((service) => _buildServiceCard(service)).toList(),
           ),
         ],
@@ -1898,11 +2102,11 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         children: [
           Row(
             children: [
-              Text(service.title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+              Text(service.title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
               const Spacer(),
               TextButton(
                 onPressed: () => setState(() => _selectedPage = AppPage.services),
-                child: const Text('Back to Services'),
+                child: const Text('Back to Services', style: TextStyle(color: Colors.white70)),
               ),
             ],
           ),
@@ -1915,9 +2119,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             errorBuilder: (context, error, stackTrace) => const SizedBox(height: 260, child: Center(child: Text('Image unavailable'))),
           ),
           const SizedBox(height: 24),
-          Text(service.details, style: const TextStyle(fontSize: 16, color: Colors.black87, height: 1.5)),
+          Text(service.details, style: const TextStyle(fontSize: 16, color: Colors.white70, height: 1.5)),
           const SizedBox(height: 24),
-          const Text('Service features', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text('Service features', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 16),
           Wrap(
             spacing: 12,
@@ -1925,14 +2129,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             children: service.features.map((feature) => Chip(label: Text(feature))).toList(),
           ),
           const SizedBox(height: 32),
-          const Text('On-demand mobile service for home or office', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          const Text('On-demand mobile service for home or office', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: kAppHeaderTextColor)),
           const SizedBox(height: 12),
-          const Text('Technicians travel to your location and complete the job on-site, whether at home or at the office.', style: TextStyle(fontSize: 16, color: Colors.black54, height: 1.5)),
+          const Text('Technicians travel to your location and complete the job on-site, whether at home or at the office.', style: TextStyle(fontSize: 16, color: kAppBodyTextColor, height: 1.5)),
           const SizedBox(height: 30),
           ElevatedButton(
             onPressed: () => _navigateToServiceRequest(service.title),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1E88E5),
+              backgroundColor: kAppPrimaryColor,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -1965,7 +2169,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('thank you for requesting then $serviceName for quick services chat us', style: const TextStyle(fontSize: 16)),
+              Text('Thank you for requesting $serviceName for quick services chat us', style: const TextStyle(fontSize: 16)),
             ],
           ),
           actions: [
@@ -1974,7 +2178,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 Navigator.of(context).pop();
                 setState(() => _selectedPage = _currentUser == null ? AppPage.services : AppPage.requestService);
               },
-              child: const Text('view more', style: TextStyle(color: Color(0xFF1E88E5))),
+              child: const Text('view more', style: TextStyle(color: kAppPrimaryColor)),
             ),
             ElevatedButton.icon(
               onPressed: () async {
@@ -1986,7 +2190,50 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               icon: const Icon(Icons.chat_bubble_outline, size: 18),
               label: const Text('WhatsApp'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF25D366),
+                backgroundColor: kAppSuccessColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showHirePopup() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Car Hire', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text(
+            'Thank you for Hiring a Car with us for quick services. Chat us here.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                if (mounted) {
+                  setState(() => _selectedPage = AppPage.home);
+                }
+              },
+              child: const Text('View More', style: TextStyle(color: kAppPrimaryColor)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                final Uri url = Uri.parse('https://wa.me/254719838935');
+                Navigator.of(context).pop();
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: const Icon(Icons.chat, size: 18),
+              label: const Text('WhatsApp'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAppSuccessColor,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -2012,12 +2259,16 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         keyboardType: keyboardType,
         obscureText: obscureText,
         validator: validator,
+        style: const TextStyle(color: kAppHeaderTextColor),
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: const Color(0xFF1E88E5)) : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          labelStyle: const TextStyle(color: kAppBodyTextColor),
+          prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: kAppPrimaryColor) : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: kAppPrimaryColor.withOpacity(0.7), width: 1.5)),
           filled: true,
-          fillColor: Colors.grey.shade50,
+          fillColor: const Color(0xFFF4F7FB),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         ),
       ),
@@ -2029,70 +2280,203 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: true,
+        withData: true,
       );
 
-      if (result != null) {
-        setState(() => _isLoading = true);
-        
-        for (var file in result.files) {
+      if (result == null || result.files.isEmpty) return;
+
+      if (_listingImageUrls.length >= 10) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You can upload a maximum of 10 images. Remove one before adding another.')),
+        );
+        return;
+      }
+
+      if (_listingImageUrls.length + result.files.length > 10) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select fewer files. Maximum 10 images are allowed.')),
+        );
+        return;
+      }
+
+      setState(() => _isUploadingImages = true);
+      
+      int successCount = 0;
+      int failCount = 0;
+
+      for (var file in result.files) {
+        try {
           final fileName = 'listing_images/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
           final storageRef = FirebaseStorage.instance.ref().child(fileName);
-          
-          UploadTask uploadTask;
-          if (kIsWeb) {
-            uploadTask = storageRef.putData(file.bytes!);
-          } else {
-            uploadTask = storageRef.putFile(File(file.path!));
+          final metadata = SettableMetadata(contentType: _getContentType(file.name));
+
+          Uint8List? fileBytes = file.bytes;
+          if (fileBytes == null && !kIsWeb && file.path != null) {
+            fileBytes = await readFileBytes(file.path!);
           }
 
-          final snapshot = await uploadTask;
+          if (fileBytes == null) {
+            failCount++;
+            continue;
+          }
+
+          final uploadTask = storageRef.putData(fileBytes, metadata);
+          
+          // Add a timeout to prevent infinite loading
+          final snapshot = await uploadTask.timeout(const Duration(seconds: 30));
           final downloadUrl = await snapshot.ref.getDownloadURL();
 
+          if (!mounted) break;
           setState(() {
             _listingImageUrls.add(downloadUrl);
           });
+          successCount++;
+        } catch (e) {
+          debugPrint('Image upload error: $e');
+          failCount++;
         }
-        
-        setState(() => _isLoading = false);
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Images uploaded successfully!')),
-        );
+      }
+
+      if (mounted) {
+        setState(() => _isUploadingImages = false);
+        if (successCount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Successfully uploaded $successCount image(s).${failCount > 0 ? " $failCount failed." : ""}')),
+          );
+        } else if (failCount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to upload images. Please check your connection and try again.')),
+          );
+        }
       }
     } catch (e) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to upload image: $e')),
-      );
+      debugPrint('Overall image pick/upload error: $e');
+      if (mounted) {
+        setState(() => _isUploadingImages = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An unexpected error occurred: $e')),
+        );
+      }
+    } finally {
+      if (mounted && _isUploadingImages) {
+        setState(() => _isUploadingImages = false);
+      }
+    }
+  }
+
+  String _getContentType(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
     }
   }
 
   Widget _buildImageUrlEntry() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Add images for the listing', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _pickAndUploadImage,
-                icon: _isLoading 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.photo_library),
-                label: Text(_isLoading ? 'Uploading...' : 'Upload Images from Computer'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E88E5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF13213A),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Add images for the listing', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.white)),
+          const SizedBox(height: 8),
+          const Text(
+            'Upload between 3 and 10 photos. Good photos help your car get noticed.',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isUploadingImages ? null : _pickAndUploadImage,
+                  icon: _isUploadingImages
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.photo_library),
+                  label: Text(_isUploadingImages ? 'Uploading...' : 'Upload Images from Computer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kAppPrimaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text('Selected images: ${_listingImageUrls.length}/10', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white)),
+              const SizedBox(width: 12),
+              if (_listingImageUrls.length < 3)
+                const Text('Minimum 3 required.', style: TextStyle(color: kAppErrorColor, fontSize: 12)),
+            ],
+          ),
+          if (_listingImageUrls.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: _listingImageUrls.map((url) {
+                return Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        url,
+                        height: 96,
+                        width: 96,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 96,
+                          width: 96,
+                          color: Colors.grey.shade200,
+                          child: const Center(child: Icon(Icons.broken_image, color: Colors.black45)),
+                        ),
+                      ),
+                    ),
+                    Material(
+                      color: Colors.black45,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => setState(() => _listingImageUrls.remove(url)),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.close, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
             ),
           ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -2157,7 +2541,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Registration successful.'),
-              backgroundColor: Colors.green,
+              backgroundColor: kAppSuccessColor,
             ),
           );
         }
@@ -2168,7 +2552,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${e.code}: ${e.message ?? 'Registration failed.'}'),
-            backgroundColor: Colors.red,
+            backgroundColor: kAppErrorColor,
           ),
         );
       }
@@ -2182,7 +2566,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(userFriendlyMessage),
-            backgroundColor: Colors.orange,
+            backgroundColor: kAppWarningColor,
           ),
         );
       }
@@ -2192,7 +2576,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Operation timed out. Please check your connection.'),
-            backgroundColor: Colors.orange,
+            backgroundColor: kAppWarningColor,
           ),
         );
       }
@@ -2202,7 +2586,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('An error occurred: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: kAppErrorColor,
           ),
         );
       }
@@ -2250,7 +2634,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Admin Bypass Login successful.'),
-              backgroundColor: Colors.green,
+              backgroundColor: kAppSuccessColor,
             ),
           );
         }
@@ -2292,7 +2676,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Login successful.'),
-                backgroundColor: Colors.green,
+                backgroundColor: kAppSuccessColor,
               ),
             );
           }
@@ -2315,7 +2699,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Admin Login successful.'),
-                backgroundColor: Colors.green,
+                backgroundColor: kAppSuccessColor,
               ),
             );
           }
@@ -2327,7 +2711,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('User profile not found. Please register again.'),
-                backgroundColor: Colors.red,
+                backgroundColor: kAppErrorColor,
               ),
             );
           }
@@ -2339,7 +2723,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${e.code}: ${e.message ?? 'Login failed.'}'),
-            backgroundColor: Colors.red,
+            backgroundColor: kAppErrorColor,
           ),
         );
       }
@@ -2353,7 +2737,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(userFriendlyMessage),
-            backgroundColor: Colors.orange,
+            backgroundColor: kAppWarningColor,
           ),
         );
       }
@@ -2363,7 +2747,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Operation timed out. Please check your connection.'),
-            backgroundColor: Colors.orange,
+            backgroundColor: kAppWarningColor,
           ),
         );
       }
@@ -2373,7 +2757,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('An error occurred: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: kAppErrorColor,
           ),
         );
       }
@@ -2386,6 +2770,15 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   void _submitListingForm() {
+    if (_isUploadingImages) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please wait for image upload to finish before saving the listing.')),
+        );
+      }
+      return;
+    }
+
     if (!_listingFormKey.currentState!.validate() || _currentUser == null) return;
     
     final selectedPackage = _listingPackages.firstWhere((pkg) => pkg.name == _selectedListingPackage);
@@ -2393,6 +2786,13 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     
     if (selectedPackage.name == 'Free Package' && currentFreeListings >= selectedPackage.maxListings) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Free package limit reached. Choose Premium to add more listings.')));
+      return;
+    }
+
+    if (_listingImageUrls.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please upload at least 3 images for your listing.')),
+      );
       return;
     }
 
@@ -2661,78 +3061,118 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         label,
         style: TextStyle(
           fontWeight: active ? FontWeight.bold : FontWeight.normal,
-          color: active ? const Color(0xFF1E88E5) : Colors.black87,
+          color: active ? kAppPrimaryColor : kAppBodyTextColor,
         ),
       ),
     );
   }
 
   Widget _buildHeroSection() {
+    final isMobile = _isMobile(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 5,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      constraints: BoxConstraints(minHeight: isMobile ? 520 : 620),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: kAppBackgroundColor,
+        image: DecorationImage(
+          image: const AssetImage('public/img/hero-image.png'),
+          fit: BoxFit.cover,
+          alignment: Alignment.centerRight,
+          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.45), BlendMode.darken),
+        ),
+      ),
+      padding: _responsiveSectionPadding(context),
+      child: isMobile
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const Text(
                   'Welcome to\nGroundedCars Kenya',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 48,
+                    fontSize: 36,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF1A237E),
+                    color: Colors.white,
                     height: 1.1,
                   ),
                 ),
                 const SizedBox(height: 20),
                 const Text(
                   "Kenya's Largest Used, Salvage & Rental Car Marketplace\n& On-Demand Automotive Services",
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.black87,
+                    fontSize: 16,
+                    color: Colors.white70,
                     height: 1.5,
                   ),
                 ),
                 const SizedBox(height: 32),
                 Wrap(
+                  alignment: WrapAlignment.center,
                   spacing: 16,
                   runSpacing: 16,
                   children: [
-                    _buildLargeButton('List Your Car', const Color(0xFF1E88E5), AppPage.manageListings),
-                    _buildLargeButton('Hire a Car', const Color(0xFFFFA000), AppPage.home),
-                    _buildLargeButton('Request Service', const Color(0xFF43A047), AppPage.services),
+                    _buildLargeButton('List Your Car', kAppPrimaryColor, AppPage.manageListings),
+                    _buildLargeButton('Hire a Car', kAppSecondaryColor, AppPage.home, onPressed: _showHirePopup),
+                    _buildLargeButton('Request Service', kAppPrimaryColor, AppPage.services),
                   ],
+                ),
+                const SizedBox(height: 40),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Welcome to\nGroundedCars Kenya',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        "Kenya's Largest Used, Salvage & Rental Car Marketplace\n& On-Demand Automotive Services",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white70,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 16,
+                        runSpacing: 16,
+                        children: [
+                          _buildLargeButton('List Your Car', kAppPrimaryColor, AppPage.manageListings),
+                          _buildLargeButton('Hire a Car', kAppSecondaryColor, AppPage.home, onPressed: _showHirePopup),
+                          _buildLargeButton('Request Service', kAppPrimaryColor, AppPage.services),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 24),
-          Expanded(
-            flex: 5,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                color: Colors.transparent,
-                child: Image.asset(
-                  'public/img/hero-image.png',
-                  fit: BoxFit.contain,
-                  height: 420,
-                  width: double.infinity,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildLargeButton(String label, Color color, AppPage page) {
+  Widget _buildLargeButton(String label, Color color, AppPage page, {VoidCallback? onPressed}) {
     return ElevatedButton(
-      onPressed: () => setState(() => _selectedPage = page),
+      onPressed: onPressed ?? () => setState(() => _selectedPage = page),
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
@@ -2758,9 +3198,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           children: [
             Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1E88E5))),
+            Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppPrimaryColor)),
             const SizedBox(height: 8),
-            Text(subtitle, style: const TextStyle(color: Colors.black54)),
+            Text(subtitle, style: const TextStyle(color: Colors.white70)),
           ],
         ),
       ),
@@ -2824,7 +3264,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     icon: const Icon(Icons.search),
                     label: const Text('Search'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1E88E5),
+                      backgroundColor: kAppPrimaryColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -2848,14 +3288,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             label,
             style: TextStyle(
               fontWeight: active ? FontWeight.bold : FontWeight.normal,
-              color: active ? const Color(0xFF1E88E5) : Colors.grey,
+              color: active ? kAppPrimaryColor : Colors.grey,
             ),
           ),
           if (active)
             Container(
               height: 2,
               width: 20,
-              color: const Color(0xFF1E88E5),
+              color: kAppPrimaryColor,
               margin: const EdgeInsets.only(top: 4),
             ),
         ],
@@ -2875,13 +3315,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       width: 180,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
+        color: Colors.white,
         border: Border.all(color: Colors.grey.shade300),
         borderRadius: BorderRadius.circular(8),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedValue,
-          hint: Text(label, style: const TextStyle(color: Colors.grey)),
+          hint: Text(label, style: const TextStyle(color: kAppBodyTextColor)),
           isExpanded: true,
           items: dropdownItems,
           onChanged: onChanged,
@@ -2891,7 +3332,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildCarListingsSection() {
-    return Padding(
+    return Container(
+      color: kAppBackgroundColor,
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2907,7 +3349,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E88E5),
+                      color: kAppPrimaryColor,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -2917,7 +3359,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF1A237E),
+                      color: kAppHeaderTextColor,
                       letterSpacing: -0.5,
                     ),
                   ),
@@ -2926,7 +3368,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               TextButton(
                 onPressed: () {},
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF1E88E5),
+                  foregroundColor: kAppPrimaryColor,
                   textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 child: const Row(
@@ -2957,7 +3399,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           Builder(
             builder: (context) {
               final approvedListings = _listings.where((listing) => listing.approvalStatus == 'Approved').toList();
-              if (approvedListings.isEmpty) {
+                  if (approvedListings.isEmpty) {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 60),
@@ -2965,19 +3407,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                       _listings.isEmpty
                           ? 'Loading listings...'
                           : 'No approved car listings are available right now.',
-                      style: const TextStyle(fontSize: 16, color: Colors.black54),
+                      style: const TextStyle(fontSize: 16, color: kAppBodyTextColor),
                     ),
                   ),
                 );
               }
 
               return GridView.count(
-                crossAxisCount: 4,
+                crossAxisCount: _responsiveColumns(context, desktop: 4),
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 32,
                 crossAxisSpacing: 32,
-                childAspectRatio: 0.7,
+                childAspectRatio: _isMobile(context) ? 1.1 : 0.7,
                 children: approvedListings.map((listing) {
                   return _buildCarCard(
                     listing.title,
@@ -3010,16 +3452,16 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            color: active ? const Color(0xFF1E88E5) : Colors.white,
+            color: active ? kAppPrimaryColor : const Color(0xFFD7E2EF),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: active ? const Color(0xFF1E88E5) : Colors.grey.shade300,
+              color: active ? kAppPrimaryColor : const Color(0xFFBFCFDE),
               width: 1.5,
             ),
             boxShadow: active
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF1E88E5).withOpacity(0.3),
+                      color: kAppPrimaryColor.withOpacity(0.22),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     )
@@ -3032,14 +3474,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               Icon(
                 icon,
                 size: 18,
-                color: active ? Colors.white : Colors.black87,
+                color: active ? Colors.white : const Color(0xFF4A6D8C),
               ),
               const SizedBox(width: 8),
               Text(
                 name,
                 style: TextStyle(
-                  color: active ? Colors.white : Colors.black87,
-                  fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                  color: active ? Colors.white : const Color(0xFF4A6D8C),
+                  fontWeight: active ? FontWeight.bold : FontWeight.w600,
                   fontSize: 14,
                 ),
               ),
@@ -3055,13 +3497,13 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kAppCardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -3097,7 +3539,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: tag == 'For Sale' ? const Color(0xFF4CAF50) : const Color(0xFF2196F3),
+                      color: tag == 'For Sale' ? kAppSuccessColor : kAppPrimaryColor,
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
@@ -3125,7 +3567,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: const BoxDecoration(
-                        color: Colors.orange,
+                        color: kAppWarningColor,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.star, color: Colors.white, size: 16),
@@ -3143,7 +3585,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: Color(0xFF333333),
+                      color: kAppHeaderTextColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -3151,11 +3593,11 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                      const Icon(Icons.location_on_outlined, size: 14, color: kAppBodyTextColor),
                       const SizedBox(width: 4),
                       Text(
                         location,
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        style: const TextStyle(color: kAppBodyTextColor, fontSize: 12),
                       ),
                     ],
                   ),
@@ -3179,7 +3621,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 18,
-                          color: Color(0xFF1E88E5),
+                          color: kAppPrimaryColor,
                         ),
                       ),
                       InkWell(
@@ -3188,13 +3630,13 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFF1E88E5)),
+                            border: Border.all(color: kAppPrimaryColor),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
                             'Details',
                             style: TextStyle(
-                              color: Color(0xFF1E88E5),
+                              color: kAppPrimaryColor,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -3215,18 +3657,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   Widget _buildSpecIcon(IconData icon, String label) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: Colors.grey.shade400),
+        Icon(icon, size: 14, color: const Color(0xFF64748B)),
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          style: const TextStyle(color: kAppBodyTextColor, fontSize: 12),
         ),
       ],
     );
   }
 
   Widget _buildServicesSection() {
-    return Padding(
+    return Container(
+      color: const Color(0xFF2B333D),
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3235,11 +3678,15 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             children: [
               const Text(
                 'On-Demand Car Services',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               const Spacer(),
               TextButton(
                 onPressed: () => setState(() => _selectedPage = AppPage.services),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 child: const Text('View All Services >'),
               ),
             ],
@@ -3261,8 +3708,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
   Widget _buildServiceCard(ServiceDefinition service) {
     return Card(
+      color: const Color(0xFF3F4A57),
       clipBehavior: Clip.antiAlias,
-      elevation: 4,
+      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3280,12 +3728,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               children: [
                 Text(
                   service.title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   service.shortDescription,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -3297,7 +3745,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           _selectedPage = AppPage.serviceDetails;
                         }),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E88E5),
+                          backgroundColor: kAppPrimaryColor,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                         ),
@@ -3309,8 +3757,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                       child: OutlinedButton(
                         onPressed: () => _navigateToServiceRequest(service.title),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1E88E5),
-                          side: const BorderSide(color: Color(0xFF1E88E5)),
+                          foregroundColor: Colors.white70,
+                          side: const BorderSide(color: Colors.white38),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                         ),
                         child: const Text('Request'),
@@ -3327,23 +3775,21 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildSellRentSection() {
+    final isMobile = _isMobile(context);
     return Container(
-      color: Colors.blue.shade50.withOpacity(0.5),
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 40),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
+      color: Color(0xFF1E293B),
+      padding: _responsiveSectionPadding(context),
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 RichText(
                   text: const TextSpan(
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                     children: [
                       TextSpan(text: 'Sell '),
                       TextSpan(text: 'or ', style: TextStyle(fontWeight: FontWeight.normal)),
-                      TextSpan(text: 'Rent Out ', style: TextStyle(color: Color(0xFF1E88E5))),
+                      TextSpan(text: 'Rent Out ', style: TextStyle(color: kAppLightAccentColor)),
                       TextSpan(text: 'Your Car Today!'),
                     ],
                   ),
@@ -3351,27 +3797,56 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 const SizedBox(height: 16),
                 const Text(
                   'Get started by creating a listing for sale or hire. Track how many views,\nfavorites, and inquiries your listing receives, and respond to interested renters.',
-                  style: TextStyle(color: Colors.black54, fontSize: 16),
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+                const SizedBox(height: 24),
+                _buildSmallLargeButton('List Your Car', kAppPrimaryColor, Icons.send, onPressed: () => setState(() => _selectedPage = AppPage.manageListings)),
+                const SizedBox(height: 16),
+                _buildSmallLargeButton('Hire Your Car', kAppSecondaryColor, Icons.car_rental, onPressed: _showHirePopup),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RichText(
+                        text: const TextSpan(
+                          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+                          children: [
+                            TextSpan(text: 'Sell '),
+                            TextSpan(text: 'or ', style: TextStyle(fontWeight: FontWeight.normal)),
+                            TextSpan(text: 'Rent Out ', style: TextStyle(color: kAppLightAccentColor)),
+                            TextSpan(text: 'Your Car Today!'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Get started by creating a listing for sale or hire. Track how many views,\nfavorites, and inquiries your listing receives, and respond to interested renters.',
+                        style: TextStyle(color: Colors.white70, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 40),
+                Row(
+                  children: [
+                    _buildSmallLargeButton('List Your Car', kAppPrimaryColor, Icons.send, onPressed: () => setState(() => _selectedPage = AppPage.manageListings)),
+                    const SizedBox(width: 20),
+                    _buildSmallLargeButton('Hire Your Car', kAppSecondaryColor, Icons.car_rental, onPressed: _showHirePopup),
+                  ],
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 40),
-          Row(
-            children: [
-              _buildSmallLargeButton('List Your Car', const Color(0xFF1E88E5), Icons.send),
-              const SizedBox(width: 20),
-              _buildSmallLargeButton('Hire Your Car', const Color(0xFF7CB342), Icons.car_rental),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildSmallLargeButton(String label, Color color, IconData icon) {
+  Widget _buildSmallLargeButton(String label, Color color, IconData icon, {VoidCallback? onPressed}) {
     return ElevatedButton.icon(
-      onPressed: () {},
+      onPressed: onPressed,
       icon: Icon(icon),
       label: Text(label),
       style: ElevatedButton.styleFrom(
@@ -3401,21 +3876,21 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 Icons.list_alt,
                 'Free & Premium Listings',
                 'Free for everyone. Change and EDIT to extend your ads\nappropriate, marketing to reach more and offer\nsatisfaction through visibility, reach, and rating.',
-                const Color(0xFF1E88E5),
+                kAppPrimaryColor,
               ),
               const SizedBox(width: 40),
               _buildFeatureItem(
                 Icons.settings_suggest,
                 'On-Demand Car Services',
                 'Professional watch payments listings car services send\nextensive services, is hiring your sitting for,\ntrade and updates, local ads, building more.',
-                const Color(0xFF1E88E5),
+                kAppPrimaryColor,
               ),
               const SizedBox(width: 40),
               _buildFeatureItem(
                 Icons.security,
                 'Secure, Easy Payments',
                 'Fast and secure booking, family payments,\npossible, keeping services, better experience for\nusers, easy maintenance, and more.',
-                const Color(0xFF00BFA5),
+                kAppSecondaryColor,
               ),
             ],
           ),
@@ -3426,41 +3901,127 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
   Widget _buildFeatureItem(IconData icon, String title, String description, Color iconColor) {
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              shape: BoxShape.circle,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F7FA),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
             ),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            description,
-            style: const TextStyle(color: Colors.black54, fontSize: 14, height: 1.5),
-          ),
-        ],
+            const SizedBox(height: 20),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              description,
+              style: const TextStyle(color: kAppBodyTextColor, fontSize: 14, height: 1.5),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildFooter() {
     return Container(
-      color: const Color(0xFF1A237E),
+      color: Color(0xFF111827),
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 40),
-      child: const Center(
-        child: Text(
-          '© 2026 GroundedCars. All Rights Reserved.',
-          style: TextStyle(color: Colors.white70),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 32,
+            runSpacing: 24,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              SizedBox(
+                width: 260,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('Grounded Cars', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 12),
+                    Text(
+                      'Discover grounded cars across Kenya, request service, and list vehicles easily with our trusted marketplace.',
+                      style: TextStyle(color: Colors.white70, height: 1.6),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 220,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Useful Links', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    _buildFooterLink('Home', AppPage.home),
+                    _buildFooterLink('Services', AppPage.services),
+                    _buildFooterLink('My Listings', AppPage.manageListings),
+                    _buildFooterLink('Request Service', AppPage.requestService),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 220,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Contact', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    const Text('Phone: +254 719 838 935', style: TextStyle(color: Colors.white70, height: 1.6)),
+                    const SizedBox(height: 8),
+                    const Text('Email: support@groundedcars.co.ke', style: TextStyle(color: Colors.white70, height: 1.6)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildWhatsAppGroupButton(
+                  label: 'Join Group A',
+                  url: 'https://chat.whatsapp.com/INBzE6XzEkxHLbukiutVnH',
+                ),
+                const SizedBox(width: 32),
+                _buildWhatsAppGroupButton(
+                  label: 'Join Group B',
+                  url: 'https://chat.whatsapp.com/Ep1RHz89pxU3kQNuEO8gyO',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 24),
+          const Text('© 2026 GroundedCars. All Rights Reserved.', style: TextStyle(color: Colors.white70)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooterLink(String label, AppPage page) {
+    return InkWell(
+      onTap: () => setState(() => _selectedPage = page),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
       ),
     );
   }
