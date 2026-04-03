@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:ui' as ui;
 import 'firebase_options.dart';
 import 'file_utils_stub.dart' if (dart.library.io) 'file_utils_io.dart';
 
@@ -24,7 +25,7 @@ const Color kAppBodyTextColor = Color(0xFF4B5563);
 const Color kAppMutedTextColor = Color(0xFF6B7280);
 const Color kAppLightAccentColor = Color(0xFF8FA6BE);
 
-enum AppPage { home, services, serviceDetails, register, login, manageListings, requestService, admin }
+enum AppPage { home, services, serviceDetails, listingDetails, register, login, manageListings, requestService, admin }
 
 class ServiceDefinition {
   final String title;
@@ -50,6 +51,8 @@ class User {
   final String location;
   final bool isAdmin;
   final bool active;
+  final int listingCount;
+  final bool hasPaidSubscription;
 
   User({
     this.uid,
@@ -59,6 +62,8 @@ class User {
     required this.location,
     this.isAdmin = false,
     this.active = true,
+    this.listingCount = 0,
+    this.hasPaidSubscription = false,
   });
 
   User copyWith({
@@ -69,6 +74,8 @@ class User {
     String? location,
     bool? isAdmin,
     bool? active,
+    int? listingCount,
+    bool? hasPaidSubscription,
   }) {
     return User(
       uid: uid ?? this.uid,
@@ -78,6 +85,8 @@ class User {
       location: location ?? this.location,
       isAdmin: isAdmin ?? this.isAdmin,
       active: active ?? this.active,
+      listingCount: listingCount ?? this.listingCount,
+      hasPaidSubscription: hasPaidSubscription ?? this.hasPaidSubscription,
     );
   }
 
@@ -90,6 +99,8 @@ class User {
       'location': location,
       'isAdmin': isAdmin,
       'active': active,
+      'listingCount': listingCount,
+      'hasPaidSubscription': hasPaidSubscription,
     };
   }
 
@@ -102,6 +113,8 @@ class User {
       location: map['location'] ?? '',
       isAdmin: map['isAdmin'] ?? false,
       active: map['active'] ?? true,
+      listingCount: map['listingCount'] ?? 0,
+      hasPaidSubscription: map['hasPaidSubscription'] ?? false,
     );
   }
 }
@@ -497,6 +510,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   AppPage? _redirectPage;
   User? _currentUser;
   ServiceDefinition? _selectedService;
+  CarListing? _selectedCarListing;
   String? _selectedServiceType;
   final List<CarListing> _listings = [];
   final List<ServiceRequest> _serviceRequests = [];
@@ -544,6 +558,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
   final TextEditingController _loginEmailController = TextEditingController();
   final TextEditingController _loginPasswordController = TextEditingController();
+  final TextEditingController _forgotPasswordController = TextEditingController();
 
   final TextEditingController _listingTitleController = TextEditingController();
   final TextEditingController _listingMakeController = TextEditingController();
@@ -571,22 +586,23 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   final List<ListingPackage> _listingPackages = [
     ListingPackage(
       name: 'Free Package',
-      description: '1–3 listings with basic visibility.',
+      description: 'Up to 7 listings with basic visibility.',
       price: 'KES 0',
-      maxListings: 3,
+      maxListings: 7,
       isFeatured: false,
-      durationDays: 15,
+      durationDays: 30,
     ),
     ListingPackage(
       name: 'Premium Package',
-      description: 'Priority visibility and longer listing duration.',
+      description: 'Priority visibility and unlimited listings.',
       price: 'KES 2,000',
-      maxListings: 10,
+      maxListings: 1000,
       isFeatured: true,
-      durationDays: 60,
+      durationDays: 365,
     ),
   ];
   String _selectedListingPackage = 'Free Package';
+  String? _editingListingId;
   bool _isLoading = false;
   bool _isUploadingImages = false;
 
@@ -638,6 +654,39 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       isAdmin: true,
     );
     _users.add(adminUser);
+  }
+
+  void _showAppSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? kAppErrorColor : kAppSuccessColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 4),
+        margin: const EdgeInsets.all(16),
+        elevation: 4,
+      ),
+    );
   }
 
   @override
@@ -989,6 +1038,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         return _buildServicesPage();
       case AppPage.serviceDetails:
         return _buildServiceDetailsSection();
+      case AppPage.listingDetails:
+        return _buildListingDetailsSection();
       case AppPage.register:
         return _buildRegisterSection();
       case AppPage.login:
@@ -1117,12 +1168,18 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         _buildTextField(controller: _loginEmailController, label: 'Email address', keyboardType: TextInputType.emailAddress, prefixIcon: Icons.email, validator: _requiredValidator),
                         _buildTextField(controller: _loginPasswordController, label: 'Password', obscureText: true, prefixIcon: Icons.lock, validator: _requiredValidator),
                         const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () => setState(() => _selectedPage = AppPage.register),
-                            child: const Text('Need an account? Sign up', style: TextStyle(color: kAppPrimaryColor)),
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton(
+                              onPressed: _showForgotPasswordDialog,
+                              child: const Text('Forgot password?', style: TextStyle(color: kAppPrimaryColor)),
+                            ),
+                            TextButton(
+                              onPressed: () => setState(() => _selectedPage = AppPage.register),
+                              child: const Text('Need an account? Sign up', style: TextStyle(color: kAppPrimaryColor)),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
@@ -1239,14 +1296,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 ),
                 Row(
                   children: [
-                    Expanded(child: _buildTextField(controller: _listingConditionController, label: 'Condition', validator: _requiredValidator)),
+                    Expanded(child: _buildDropdownField(controller: _listingConditionController, label: 'Condition', items: ['Used', 'Grounded'], validator: _requiredValidator)),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildTextField(controller: _listingTransmissionController, label: 'Transmission', validator: _requiredValidator)),
+                    Expanded(child: _buildDropdownField(controller: _listingTransmissionController, label: 'Transmission', items: ['Hybrid', 'Manual', 'Automatic'], validator: _requiredValidator)),
                   ],
                 ),
                 Row(
                   children: [
-                    Expanded(child: _buildTextField(controller: _listingFuelController, label: 'Fuel Type', validator: _requiredValidator)),
+                    Expanded(child: _buildDropdownField(controller: _listingFuelController, label: 'Fuel Type', items: ['Hybrid', 'Petrol', 'Diesel', 'Electronic'], validator: _requiredValidator)),
                     const SizedBox(width: 16),
                     Expanded(child: _buildTextField(controller: _listingLocationController, label: 'Location', validator: _requiredValidator)),
                   ],
@@ -1259,7 +1316,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
-                  items: ['For Sale', 'For Hire', 'Grounded Car']
+                  items: (_isAdminUser ? ['For Sale', 'For Hire', 'Grounded Car'] : ['For Sale', 'Grounded Car'])
                       .map((status) => DropdownMenuItem(value: status, child: Text(status)))
                       .toList(),
                   onChanged: (value) {
@@ -1335,12 +1392,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           if (listing.imageUrls.isNotEmpty)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                listing.imageUrls.first,
+                              child: SizedBox(
                                 height: 120,
                                 width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => const SizedBox(height: 120, child: Center(child: Text('Image unavailable'))),
+                                child: _ImageSlider(imageUrls: listing.imageUrls),
                               ),
                             ),
                           if (listing.imageUrls.isNotEmpty) const SizedBox(height: 12),
@@ -1425,7 +1480,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 Tab(text: 'Payment Tracking'),
               ],
               labelColor: kAppLightAccentColor,
-              unselectedLabelColor: Colors.white70,
+              unselectedLabelColor: kAppMutedTextColor,
               indicatorColor: kAppLightAccentColor,
               labelStyle: const TextStyle(fontWeight: FontWeight.bold),
             ),
@@ -1589,8 +1644,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text(user.email, style: const TextStyle(color: Colors.white70)),
-                          Text(user.phone, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(user.email, style: const TextStyle(color: kAppMutedTextColor)),
+                          Text(user.phone, style: const TextStyle(color: kAppMutedTextColor, fontSize: 12)),
+                          Text('Listings: ${user.listingCount}', style: const TextStyle(color: kAppMutedTextColor, fontSize: 12)),
                           Row(
                             children: [
                               Chip(
@@ -1602,6 +1658,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                               Chip(
                                 label: Text(user.active ? 'ACTIVE' : 'INACTIVE', style: const TextStyle(fontSize: 10)),
                                 backgroundColor: user.active ? kAppSuccessColor.withOpacity(0.18) : kAppErrorColor.withOpacity(0.18),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              const SizedBox(width: 8),
+                              Chip(
+                                label: Text(user.hasPaidSubscription ? 'SUBSCRIBED' : 'NOT SUBSCRIBED', style: const TextStyle(fontSize: 10)),
+                                backgroundColor: user.hasPaidSubscription ? kAppSuccessColor.withOpacity(0.18) : Colors.orange.withOpacity(0.18),
                                 visualDensity: VisualDensity.compact,
                               ),
                             ],
@@ -1696,7 +1758,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         ],
                       ),
                       const Divider(height: 24),
-                      Text('Description: ${request.description}', style: const TextStyle(color: Colors.white70)),
+                      Text('Description: ${request.description}', style: const TextStyle(color: kAppMutedTextColor)),
                       const SizedBox(height: 16),
                       Wrap(
                         spacing: 12,
@@ -2102,11 +2164,11 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         children: [
           Row(
             children: [
-              Text(service.title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+              Text(service.title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: kAppHeaderTextColor)),
               const Spacer(),
               TextButton(
                 onPressed: () => setState(() => _selectedPage = AppPage.services),
-                child: const Text('Back to Services', style: TextStyle(color: Colors.white70)),
+                child: const Text('Back to Services', style: TextStyle(color: kAppPrimaryColor)),
               ),
             ],
           ),
@@ -2119,9 +2181,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             errorBuilder: (context, error, stackTrace) => const SizedBox(height: 260, child: Center(child: Text('Image unavailable'))),
           ),
           const SizedBox(height: 24),
-          Text(service.details, style: const TextStyle(fontSize: 16, color: Colors.white70, height: 1.5)),
+          Text(service.details, style: const TextStyle(fontSize: 16, color: kAppBodyTextColor, height: 1.5)),
           const SizedBox(height: 24),
-          const Text('Service features', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+          const Text('Service features', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kAppHeaderTextColor)),
           const SizedBox(height: 16),
           Wrap(
             spacing: 12,
@@ -2275,8 +2337,49 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     );
   }
 
+  Widget _buildDropdownField({
+    required TextEditingController controller,
+    required String label,
+    required List<String> items,
+    String? Function(String?)? validator,
+    IconData? prefixIcon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<String>(
+        value: controller.text.isEmpty ? null : controller.text,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: kAppBodyTextColor),
+          prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: kAppPrimaryColor) : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: kAppPrimaryColor.withOpacity(0.7), width: 1.5)),
+          filled: true,
+          fillColor: const Color(0xFFF4F7FB),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        ),
+        items: items
+            .map((item) => DropdownMenuItem(value: item, child: Text(item, style: const TextStyle(color: kAppHeaderTextColor))))
+            .toList(),
+        onChanged: (value) {
+          if (value != null) {
+            setState(() => controller.text = value);
+          }
+        },
+        validator: validator,
+      ),
+    );
+  }
+
   Future<void> _pickAndUploadImage() async {
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        _showAppSnackBar('You must be logged in to upload images.', isError: true);
+        return;
+      }
+
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: true,
@@ -2286,16 +2389,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       if (result == null || result.files.isEmpty) return;
 
       if (_listingImageUrls.length >= 10) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You can upload a maximum of 10 images. Remove one before adding another.')),
-        );
+        _showAppSnackBar('You can upload a maximum of 10 images. Remove one before adding another.', isError: true);
         return;
       }
 
       if (_listingImageUrls.length + result.files.length > 10) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select fewer files. Maximum 10 images are allowed.')),
-        );
+        _showAppSnackBar('Please select fewer files. Maximum 10 images are allowed.', isError: true);
         return;
       }
 
@@ -2340,22 +2439,16 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       if (mounted) {
         setState(() => _isUploadingImages = false);
         if (successCount > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Successfully uploaded $successCount image(s).${failCount > 0 ? " $failCount failed." : ""}')),
-          );
+          _showAppSnackBar('Successfully uploaded $successCount image(s).${failCount > 0 ? " $failCount failed." : ""}');
         } else if (failCount > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to upload images. Please check your connection and try again.')),
-          );
+          _showAppSnackBar('Failed to upload images. Please check your connection and try again.', isError: true);
         }
       }
     } catch (e) {
       debugPrint('Overall image pick/upload error: $e');
       if (mounted) {
         setState(() => _isUploadingImages = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An unexpected error occurred: $e')),
-        );
+        _showAppSnackBar('An unexpected error occurred: $e', isError: true);
       }
     } finally {
       if (mounted && _isUploadingImages) {
@@ -2450,12 +2543,31 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         height: 96,
                         width: 96,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 96,
-                          width: 96,
-                          color: Colors.grey.shade200,
-                          child: const Center(child: Icon(Icons.broken_image, color: Colors.black45)),
-                        ),
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 96,
+                            width: 96,
+                            color: Colors.grey.shade100,
+                            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          debugPrint('Image loading error: $error for URL: $url');
+                          return Container(
+                            height: 96,
+                            width: 96,
+                            color: Colors.grey.shade200,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.broken_image, color: Colors.black45),
+                                SizedBox(height: 4),
+                                Text('Error', style: TextStyle(fontSize: 10, color: Colors.black45)),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ),
                     Material(
@@ -2506,6 +2618,26 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       final phone = _regPhoneController.text.trim();
       final location = _regLocationController.text.trim();
       final isAdmin = email.toLowerCase() == 'admin@groundedcars.co.ke';
+
+      debugPrint('Checking uniqueness of phone number: $phone');
+      final phoneCheck = await FirebaseFirestore.instance
+          .collection('users')
+          .where('phone', isEqualTo: phone)
+          .get()
+          .timeout(const Duration(seconds: 10));
+
+      if (phoneCheck.docs.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('The phone number provided is already registered.'),
+              backgroundColor: kAppErrorColor,
+            ),
+          );
+        }
+        setState(() => _isLoading = false);
+        return;
+      }
 
       debugPrint('Attempting to create user with email: $email');
       final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -2595,6 +2727,97 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _showForgotPasswordDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: kAppCardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Reset Password', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter your email or phone number to receive a password reset link.', style: TextStyle(color: kAppBodyTextColor)),
+            const SizedBox(height: 20),
+            _buildTextField(
+              controller: _forgotPasswordController,
+              label: 'Email or Phone Number',
+              prefixIcon: Icons.email,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: _submitForgotPassword,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAppPrimaryColor, 
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Send Reset Link'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitForgotPassword() async {
+    final input = _forgotPasswordController.text.trim();
+    if (input.isEmpty) return;
+
+    Navigator.pop(context); // Close dialog
+    setState(() => _isLoading = true);
+    
+    try {
+      String email = input;
+      
+      // If input doesn't look like an email, try to find the user by phone number in Firestore
+      if (!input.contains('@')) {
+        debugPrint('Input is not an email, searching by phone: $input');
+        final userSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .where('phone', isEqualTo: input)
+            .get()
+            .timeout(const Duration(seconds: 10));
+        
+        if (userSnapshot.docs.isEmpty) {
+          throw 'No user found with the phone number provided.';
+        }
+        email = userSnapshot.docs.first.get('email');
+        debugPrint('Found email associated with phone: $email');
+      }
+
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password reset link sent to your email.'),
+            backgroundColor: kAppSuccessColor,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error in _submitForgotPassword: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e is String ? e : 'An error occurred sending reset link. Please try again.'),
+            backgroundColor: kAppErrorColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+      _forgotPasswordController.clear();
     }
   }
 
@@ -2781,13 +3004,17 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
     if (!_listingFormKey.currentState!.validate() || _currentUser == null) return;
     
-    final selectedPackage = _listingPackages.firstWhere((pkg) => pkg.name == _selectedListingPackage);
-    final currentFreeListings = _listings.where((listing) => listing.ownerEmail == _currentUser!.email && listing.packageType == 'Free Package').length;
-    
-    if (selectedPackage.name == 'Free Package' && currentFreeListings >= selectedPackage.maxListings) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Free package limit reached. Choose Premium to add more listings.')));
+    if (_currentUser!.listingCount >= 7 && !_currentUser!.hasPaidSubscription) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You have reached the limit of 7 listings. Please pay KES 2,000 to list more.'),
+          duration: Duration(seconds: 5),
+        ),
+      );
       return;
     }
+
+    final selectedPackage = _listingPackages.firstWhere((pkg) => pkg.name == _selectedListingPackage);
 
     if (_listingImageUrls.length < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2827,6 +3054,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
     FirebaseFirestore.instance.collection('listings').add(newListing.toMap()).then((_) {
       _fetchListings();
+      // Update user listing count
+      if (_currentUser != null) {
+        final updatedUser = _currentUser!.copyWith(listingCount: _currentUser!.listingCount + 1);
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(_currentUser!.uid)
+            .update({'listingCount': updatedUser.listingCount});
+        if (mounted) {
+          setState(() {
+            _currentUser = updatedUser;
+          });
+        }
+      }
       if (mounted) {
         setState(() {
           _listingTitleController.clear();
@@ -3200,7 +3440,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             const SizedBox(height: 8),
             Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppPrimaryColor)),
             const SizedBox(height: 8),
-            Text(subtitle, style: const TextStyle(color: Colors.white70)),
+            Text(subtitle, style: const TextStyle(color: kAppMutedTextColor)),
           ],
         ),
       ),
@@ -3421,21 +3661,228 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 crossAxisSpacing: 32,
                 childAspectRatio: _isMobile(context) ? 1.1 : 0.7,
                 children: approvedListings.map((listing) {
-                  return _buildCarCard(
-                    listing.title,
-                    listing.status,
-                    listing.price.isNotEmpty ? listing.price : 'Contact for price',
-                    listing.imageUrls.isNotEmpty
-                        ? listing.imageUrls.first
-                        : 'https://images.unsplash.com/photo-1542362567-b058c02b56f2?q=80&w=2070&auto=format&fit=crop',
-                    year: listing.year.isNotEmpty ? listing.year : null,
-                    mileage: listing.mileage.isNotEmpty ? listing.mileage : null,
-                    isFeatured: listing.isFeatured,
-                    location: listing.location.isNotEmpty ? listing.location : 'Nairobi, Kenya',
-                  );
+                  return _buildCarCard(listing);
                 }).toList(),
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListingDetailsSection() {
+    final listing = _selectedCarListing;
+    if (listing == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 60),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Listing not found.', style: TextStyle(fontSize: 18, color: kAppBodyTextColor)),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => setState(() => _selectedPage = AppPage.home),
+                child: const Text('Go Home'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Container(
+        color: kAppBackgroundColor,
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with Back Button
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: kAppPrimaryColor),
+                  onPressed: () => setState(() => _selectedPage = AppPage.home),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    listing.title,
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: kAppHeaderTextColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            
+            // Content
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Main Image
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: listing.imageUrls.isNotEmpty
+                          ? Image.network(
+                              listing.imageUrls.first,
+                              width: double.infinity,
+                              height: 500,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              height: 500,
+                              width: double.infinity,
+                              color: Colors.grey[200],
+                              child: const Icon(Icons.image_not_supported, size: 100, color: Colors.grey),
+                            ),
+                    ),
+                    const SizedBox(height: 40),
+                    
+                    // Details Grid
+                    Wrap(
+                      spacing: 40,
+                      runSpacing: 40,
+                      children: [
+                        _buildDetailItem('Price', listing.price.isNotEmpty ? listing.price : 'Contact', Icons.attach_money),
+                        _buildDetailItem('Year', listing.year, Icons.calendar_today),
+                        _buildDetailItem('Mileage', listing.mileage, Icons.speed),
+                        _buildDetailItem('Condition', listing.condition, Icons.info_outline),
+                        _buildDetailItem('Transmission', listing.transmission, Icons.settings),
+                        _buildDetailItem('Fuel Type', listing.fuelType, Icons.local_gas_station),
+                        _buildDetailItem('Location', listing.location, Icons.location_on),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 40),
+                    const Divider(),
+                    const SizedBox(height: 40),
+                    
+                    const Text(
+                      'Description',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      listing.description,
+                      style: const TextStyle(fontSize: 16, color: kAppBodyTextColor, height: 1.6),
+                    ),
+                    
+                    const SizedBox(height: 40),
+                    const Text(
+                      'Features',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: listing.features.isNotEmpty
+                          ? listing.features.split(',').where((f) => f.trim().isNotEmpty).map((f) => Chip(label: Text(f.trim()))).toList()
+                          : [const Text('No specific features listed.', style: TextStyle(color: kAppBodyTextColor))],
+                    ),
+                    
+                    const SizedBox(height: 60),
+                    // Contact Owner
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: kAppCardColor,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10)),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Interested in this car?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: kAppPrimaryColor.withOpacity(0.1),
+                                child: const Icon(Icons.person, color: kAppPrimaryColor),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(listing.ownerName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          if (_isAdminUser)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {},
+                                    icon: const Icon(Icons.phone),
+                                    label: Text(listing.ownerPhone),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: kAppPrimaryColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 20),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {},
+                                    icon: const Icon(Icons.email),
+                                    label: const Text('Email Owner'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 20),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8.0),
+                              child: Text(
+                                'Contact details are hidden for privacy. Only admins can view owner contact information.',
+                                style: TextStyle(
+                                  color: kAppMutedTextColor,
+                                  fontStyle: FontStyle.italic,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailItem(String label, String value, IconData icon) {
+    return Container(
+      width: 200,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: kAppPrimaryColor, size: 32),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 14, color: kAppBodyTextColor)),
+              Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kAppHeaderTextColor)),
+            ],
           ),
         ],
       ),
@@ -3492,163 +3939,169 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     );
   }
 
-  Widget _buildCarCard(String title, String tag, String price, String imageUrl, {String? year, String? mileage, bool isFeatured = false, String location = 'Nairobi, Kenya'}) {
-    final hasValidImage = imageUrl.isNotEmpty && Uri.tryParse(imageUrl)?.hasAbsolutePath == true;
+  Widget _buildCarCard(CarListing listing) {
+    final bool hasImages = listing.imageUrls.isNotEmpty;
+    final String title = listing.title;
+    final String tag = listing.status;
+    final String price = listing.price.isNotEmpty ? listing.price : 'Contact for price';
+    final String? year = listing.year.isNotEmpty ? listing.year : null;
+    final String? mileage = listing.mileage.isNotEmpty ? listing.mileage : null;
+    final bool isFeatured = listing.isFeatured;
+    final String location = listing.location.isNotEmpty ? listing.location : 'Nairobi, Kenya';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: kAppCardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                if (hasValidImage)
-                  Image.network(
-                    imageUrl,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedCarListing = listing;
+          _selectedPage = AppPage.listingDetails;
+        });
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: kAppCardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  if (hasImages)
+                    SizedBox(
                       height: 180,
+                      width: double.infinity,
+                      child: _ImageSlider(imageUrls: listing.imageUrls),
+                    )
+                  else
+                    Container(
+                      height: 180,
+                      width: double.infinity,
                       color: Colors.grey.shade200,
-                      child: const Center(child: Icon(Icons.broken_image, size: 40, color: Colors.grey)),
+                      child: const Center(child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey)),
                     ),
-                  )
-                else
-                  Container(
-                    height: 180,
-                    width: double.infinity,
-                    color: Colors.grey.shade200,
-                    child: const Center(child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey)),
-                  ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: tag == 'For Sale' ? kAppSuccessColor : kAppPrimaryColor,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      tag.toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-                if (isFeatured)
                   Positioned(
                     top: 12,
-                    right: 12,
+                    left: 12,
                     child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: kAppWarningColor,
-                        shape: BoxShape.circle,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: tag == 'For Sale' ? kAppSuccessColor : kAppPrimaryColor,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: const Icon(Icons.star, color: Colors.white, size: 16),
-                    ),
-                  ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: kAppHeaderTextColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, size: 14, color: kAppBodyTextColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        location,
-                        style: const TextStyle(color: kAppBodyTextColor, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      if (year != null) ...[
-                        _buildSpecIcon(Icons.calendar_today_outlined, year),
-                        const SizedBox(width: 16),
-                      ],
-                      if (mileage != null)
-                        _buildSpecIcon(Icons.speed_outlined, mileage),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        price,
+                      child: Text(
+                        tag.toUpperCase(),
                         style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                          color: kAppPrimaryColor,
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      InkWell(
-                        onTap: () {},
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
+                    ),
+                  ),
+                  if (isFeatured)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: kAppWarningColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.star, color: Colors.white, size: 16),
+                      ),
+                    ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: kAppHeaderTextColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined, size: 14, color: kAppBodyTextColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          location,
+                          style: const TextStyle(color: kAppBodyTextColor, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (year != null) ...[
+                          _buildSpecIcon(Icons.calendar_today_outlined, year),
+                          const SizedBox(width: 16),
+                        ],
+                        if (mileage != null)
+                          _buildSpecIcon(Icons.speed_outlined, mileage),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          price,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                            color: kAppPrimaryColor,
+                          ),
+                        ),
+                        Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            border: Border.all(color: kAppPrimaryColor),
+                            color: kAppPrimaryColor,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
                             'Details',
                             style: TextStyle(
-                              color: kAppPrimaryColor,
+                              color: Colors.white,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -4027,3 +4480,124 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
 }
+
+class _ImageSlider extends StatefulWidget {
+  final List<String> imageUrls;
+  const _ImageSlider({required this.imageUrls});
+
+  @override
+  State<_ImageSlider> createState() => _ImageSliderState();
+}
+
+class _ImageSliderState extends State<_ImageSlider> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.imageUrls.length > 1) {
+      _timer = Timer.periodic(const Duration(seconds: 4), (Timer timer) {
+        if (_currentPage < widget.imageUrls.length - 1) {
+          _currentPage++;
+        } else {
+          _currentPage = 0;
+        }
+
+        if (_pageController.hasClients) {
+          _pageController.animateToPage(
+            _currentPage,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.imageUrls.isEmpty) return const SizedBox();
+    
+    return Stack(
+      children: [
+        PageView.builder(
+          controller: _pageController,
+          itemCount: widget.imageUrls.length,
+          onPageChanged: (int page) {
+            setState(() {
+              _currentPage = page;
+            });
+          },
+          itemBuilder: (context, index) {
+            return Image.network(
+              widget.imageUrls[index],
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                color: Colors.grey.shade200,
+                child: const Center(child: Icon(Icons.broken_image, size: 40, color: Colors.grey)),
+              ),
+            );
+          },
+        ),
+        if (widget.imageUrls.length > 1) ...[
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: IconButton(
+                icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+                onPressed: _currentPage > 0 
+                  ? () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut)
+                  : null,
+              ),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: IconButton(
+                icon: const Icon(Icons.chevron_right, color: Colors.white, size: 30),
+                onPressed: _currentPage < widget.imageUrls.length - 1
+                  ? () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut)
+                  : null,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 12,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                widget.imageUrls.length,
+                (index) => Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _currentPage == index ? Colors.white : Colors.white.withOpacity(0.5),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
