@@ -579,10 +579,11 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   final TextEditingController _listingDescriptionController = TextEditingController();
   final TextEditingController _listingImageUrlController = TextEditingController();
   final List<String> _listingImageUrls = [];
-  String? _selectedMake;
-  String? _selectedModel;
-  String? _selectedYear;
-  String? _selectedCondition;
+  String? _selectedMake = 'All Makes';
+  String? _selectedModel = 'Model';
+  String? _selectedYear = 'Year';
+  String? _selectedCondition = 'Condition';
+  String _selectedTab = 'All';
   final List<ListingPackage> _listingPackages = [
     ListingPackage(
       name: 'Free Package',
@@ -751,13 +752,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 ? Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      SvgPicture.asset(
-                        'public/img/logo/logo.svg',
-                        height: 60,
-                        placeholderBuilder: (context) => const SizedBox(
-                          height: 60,
-                          width: 60,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedPage = AppPage.home),
+                          child: SvgPicture.asset(
+                            'public/img/logo/logo.svg',
+                            height: 60,
+                            placeholderBuilder: (context) => const SizedBox(
+                              height: 60,
+                              width: 60,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
                         ),
                       ),
                       IconButton(
@@ -771,13 +778,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 : Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      SvgPicture.asset(
-                        'public/img/logo/logo.svg',
-                        height: 60,
-                        placeholderBuilder: (context) => const SizedBox(
-                          height: 60,
-                          width: 60,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedPage = AppPage.home),
+                          child: SvgPicture.asset(
+                            'public/img/logo/logo.svg',
+                            height: 60,
+                            placeholderBuilder: (context) => const SizedBox(
+                              height: 60,
+                              width: 60,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 24),
@@ -859,13 +872,22 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               child: Row(
                 children: [
-                  SvgPicture.asset(
-                    'public/img/logo/logo.svg',
-                    height: 40,
-                    placeholderBuilder: (context) => const SizedBox(
-                      height: 40,
-                      width: 40,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        setState(() => _selectedPage = AppPage.home);
+                      },
+                      child: SvgPicture.asset(
+                        'public/img/logo/logo.svg',
+                        height: 40,
+                        placeholderBuilder: (context) => const SizedBox(
+                          height: 40,
+                          width: 40,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1416,7 +1438,21 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           Text('Mileage: ${listing.mileage}', style: const TextStyle(fontSize: 13)),
                           Text('Condition: ${listing.condition}', style: const TextStyle(fontSize: 13)),
                           const Spacer(),
-                          Text('Contact: ${listing.ownerPhone}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Contact: ${listing.ownerPhone}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedCarListing = listing;
+                                    _selectedPage = AppPage.listingDetails;
+                                  });
+                                },
+                                child: const Text('View Details'),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -1564,7 +1600,21 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                               const SizedBox(height: 12),
                               Wrap(
                                 spacing: 12,
+                                runSpacing: 8,
                                 children: [
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _selectedCarListing = listing;
+                                        _selectedPage = AppPage.listingDetails;
+                                      });
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blueGrey,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: const Text('View Details'),
+                                  ),
                                   if (listing.approvalStatus == 'Pending')
                                     ElevatedButton(
                                       onPressed: () => _updateListing(listing.copyWith(approvalStatus: 'Approved')),
@@ -1687,6 +1737,15 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           OutlinedButton(
                             onPressed: () => _updateUser(user.copyWith(isAdmin: !user.isAdmin)),
                             child: Text(user.isAdmin ? 'Demote' : 'Promote'),
+                          ),
+                        if (user.email != 'admin@groundedcars.co.ke')
+                          OutlinedButton(
+                            onPressed: () => _updateUser(user.copyWith(hasPaidSubscription: !user.hasPaidSubscription)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: user.hasPaidSubscription ? Colors.orange : kAppSuccessColor,
+                              side: BorderSide(color: user.hasPaidSubscription ? Colors.orange : kAppSuccessColor),
+                            ),
+                            child: Text(user.hasPaidSubscription ? 'Revoke Premium' : 'Activate Premium'),
                           ),
                         if (user.email != 'admin@groundedcars.co.ke')
                           IconButton(
@@ -2377,6 +2436,11 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         _showAppSnackBar('You must be logged in to upload images.', isError: true);
+        return;
+      }
+
+      if (_currentUser != null && _currentUser!.listingCount >= 7 && !_currentUser!.hasPaidSubscription) {
+        _showAppSnackBar('You have reached the free limit of 7 listings. Please upgrade to Premium to upload more.', isError: true);
         return;
       }
 
@@ -3448,9 +3512,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildFilterSection() {
+    final isMobile = _isMobile(context);
     return Container(
-      transform: Matrix4.translationValues(0, -40, 0),
-      margin: const EdgeInsets.symmetric(horizontal: 40),
+      transform: Matrix4.translationValues(0, isMobile ? 0 : -40, 0),
+      margin: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 40),
       child: Card(
         elevation: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3459,27 +3524,64 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Text(
-                    'Explore Car Listings',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  _buildTab('All', true),
-                  _buildTab('For Hire', false),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Row(
+              if (isMobile)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Explore Car Listings',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
                       children: [
-                        Text('View All'),
-                        Icon(Icons.chevron_right, size: 16),
+                        _buildTab('All', _selectedTab == 'All'),
+                        const SizedBox(width: 8),
+                        _buildTab('For Hire', _selectedTab == 'For Hire'),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedMake = 'All Makes';
+                              _selectedModel = 'Model';
+                              _selectedYear = 'Year';
+                              _selectedCondition = 'Condition';
+                              _selectedTab = 'All';
+                            });
+                          },
+                          child: const Row(
+                            children: [
+                              Text('View All'),
+                              Icon(Icons.chevron_right, size: 16),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    const Text(
+                      'Explore Car Listings',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    _buildTab('All', _selectedTab == 'All'),
+                    _buildTab('For Hire', _selectedTab == 'For Hire'),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {},
+                      child: const Row(
+                        children: [
+                          Text('View All'),
+                          Icon(Icons.chevron_right, size: 16),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 24),
               Wrap(
                 spacing: 16,
@@ -3500,7 +3602,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     setState(() => _selectedCondition = value);
                   }),
                   ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => setState(() {}),
                     icon: const Icon(Icons.search),
                     label: const Text('Search'),
                     style: ElevatedButton.styleFrom(
@@ -3520,25 +3622,28 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildTab(String label, bool active) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: active ? FontWeight.bold : FontWeight.normal,
-              color: active ? kAppPrimaryColor : Colors.grey,
+    return InkWell(
+      onTap: () => setState(() => _selectedTab = label),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                color: active ? kAppPrimaryColor : Colors.grey,
+              ),
             ),
-          ),
-          if (active)
-            Container(
-              height: 2,
-              width: 20,
-              color: kAppPrimaryColor,
-              margin: const EdgeInsets.only(top: 4),
-            ),
-        ],
+            if (active)
+              Container(
+                height: 2,
+                width: 20,
+                color: kAppPrimaryColor,
+                margin: const EdgeInsets.only(top: 4),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -3606,7 +3711,15 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 ],
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  setState(() {
+                    _selectedMake = 'All Makes';
+                    _selectedModel = 'Model';
+                    _selectedYear = 'Year';
+                    _selectedCondition = 'Condition';
+                    _selectedTab = 'All';
+                  });
+                },
                 style: TextButton.styleFrom(
                   foregroundColor: kAppPrimaryColor,
                   textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -3626,19 +3739,52 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildBrandFilter('All Makes', Icons.car_rental, true),
-                _buildBrandFilter('Toyota', Icons.directions_car, false),
-                _buildBrandFilter('Nissan', Icons.directions_car, false),
-                _buildBrandFilter('Mazda', Icons.directions_car, false),
-                _buildBrandFilter('BMW', Icons.directions_car, false),
-                _buildBrandFilter('Mercedes-Benz', Icons.directions_car, false),
+                _buildBrandFilter('All Makes', Icons.car_rental, _selectedMake == 'All Makes'),
+                _buildBrandFilter('Toyota', Icons.directions_car, _selectedMake == 'Toyota'),
+                _buildBrandFilter('Nissan', Icons.directions_car, _selectedMake == 'Nissan'),
+                _buildBrandFilter('Mazda', Icons.directions_car, _selectedMake == 'Mazda'),
+                _buildBrandFilter('BMW', Icons.directions_car, _selectedMake == 'BMW'),
+                _buildBrandFilter('Mercedes-Benz', Icons.directions_car, _selectedMake == 'Mercedes-Benz'),
               ],
             ),
           ),
           const SizedBox(height: 40),
           Builder(
             builder: (context) {
-              final approvedListings = _listings.where((listing) => listing.approvalStatus == 'Approved').toList();
+              final approvedListings = _listings.where((listing) {
+                // First filter by approval status
+                if (listing.approvalStatus != 'Approved') return false;
+                
+                // Filter by Tab (All vs For Hire)
+                if (_selectedTab == 'For Hire' && listing.status != 'For Hire') return false;
+                
+                // Filter by Make/Brand
+                if (_selectedMake != null && _selectedMake != 'All Makes' && 
+                    !listing.make.toLowerCase().contains(_selectedMake!.toLowerCase()) &&
+                    !listing.title.toLowerCase().contains(_selectedMake!.toLowerCase())) return false;
+                
+                // Filter by Model
+                if (_selectedModel != null && _selectedModel != 'Model' && 
+                    !listing.model.toLowerCase().contains(_selectedModel!.toLowerCase())) return false;
+                
+                // Filter by Year
+                if (_selectedYear != null && _selectedYear != 'Year') {
+                  if (_selectedYear == 'Earlier') {
+                    final year = int.tryParse(listing.year);
+                    if (year != null && year >= 2010) return false;
+                  } else if (listing.year != _selectedYear) {
+                    return false;
+                  }
+                }
+                
+                // Filter by Condition
+                if (_selectedCondition != null && _selectedCondition != 'Condition') {
+                  if (_selectedCondition == 'Used Cars' && listing.condition != 'Used') return false;
+                  // Add more condition mapping if needed
+                }
+                
+                return true;
+              }).toList();
                   if (approvedListings.isEmpty) {
                 return Center(
                   child: Padding(
@@ -3692,10 +3838,11 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       );
     }
 
+    final isMobile = _isMobile(context);
     return SingleChildScrollView(
       child: Container(
         color: kAppBackgroundColor,
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 40, vertical: 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3710,8 +3857,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 Expanded(
                   child: Text(
                     listing.title,
-                    style: const TextStyle(
-                      fontSize: 32,
+                    style: TextStyle(
+                      fontSize: isMobile ? 24 : 32,
                       fontWeight: FontWeight.w900,
                       color: kAppHeaderTextColor,
                     ),
@@ -3727,18 +3874,17 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Main Image
+                    // Main Image / Slider
                     ClipRRect(
                       borderRadius: BorderRadius.circular(20),
                       child: listing.imageUrls.isNotEmpty
-                          ? Image.network(
-                              listing.imageUrls.first,
+                          ? SizedBox(
+                              height: isMobile ? 300 : 450,
                               width: double.infinity,
-                              height: 500,
-                              fit: BoxFit.cover,
+                              child: _ImageSlider(imageUrls: listing.imageUrls),
                             )
                           : Container(
-                              height: 500,
+                              height: isMobile ? 300 : 450,
                               width: double.infinity,
                               color: Colors.grey[200],
                               child: const Icon(Icons.image_not_supported, size: 100, color: Colors.grey),
@@ -3748,8 +3894,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     
                     // Details Grid
                     Wrap(
-                      spacing: 40,
-                      runSpacing: 40,
+                      spacing: isMobile ? 20 : 40,
+                      runSpacing: isMobile ? 20 : 40,
                       children: [
                         _buildDetailItem('Price', listing.price.isNotEmpty ? listing.price : 'Contact', Icons.attach_money),
                         _buildDetailItem('Year', listing.year, Icons.calendar_today),
@@ -3893,7 +4039,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     return Container(
       margin: const EdgeInsets.only(right: 16),
       child: InkWell(
-        onTap: () {},
+        onTap: () => setState(() => _selectedMake = name),
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -4121,37 +4267,44 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildServicesSection() {
+    final isMobile = _isMobile(context);
     return Container(
       color: const Color(0xFF2B333D),
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 40, vertical: 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text(
-                'On-Demand Car Services',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+              Expanded(
+                child: Text(
+                  'On-Demand Car Services',
+                  style: TextStyle(
+                    fontSize: isMobile ? 20 : 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               TextButton(
                 onPressed: () => setState(() => _selectedPage = AppPage.services),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white70,
                   textStyle: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                child: const Text('View All Services >'),
+                child: Text(isMobile ? 'View All' : 'View All Services >'),
               ),
             ],
           ),
           const SizedBox(height: 30),
           GridView.count(
-            crossAxisCount: 4,
+            crossAxisCount: isMobile ? 1 : 4,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 20,
             crossAxisSpacing: 20,
-            childAspectRatio: 0.85,
+            childAspectRatio: isMobile ? 1.2 : 0.85,
             children: _serviceDefinitions.map((service) => _buildServiceCard(service)).toList(),
           ),
         ],
@@ -4312,7 +4465,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildWhyChooseSection() {
-    return Padding(
+    return Container(
+      color: kAppBackgroundColor,
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4322,68 +4476,102 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 48),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildFeatureItem(
-                Icons.list_alt,
-                'Free & Premium Listings',
-                'Free for everyone. Change and EDIT to extend your ads\nappropriate, marketing to reach more and offer\nsatisfaction through visibility, reach, and rating.',
-                kAppPrimaryColor,
-              ),
-              const SizedBox(width: 40),
-              _buildFeatureItem(
-                Icons.settings_suggest,
-                'On-Demand Car Services',
-                'Professional watch payments listings car services send\nextensive services, is hiring your sitting for,\ntrade and updates, local ads, building more.',
-                kAppPrimaryColor,
-              ),
-              const SizedBox(width: 40),
-              _buildFeatureItem(
-                Icons.security,
-                'Secure, Easy Payments',
-                'Fast and secure booking, family payments,\npossible, keeping services, better experience for\nusers, easy maintenance, and more.',
-                kAppSecondaryColor,
-              ),
-            ],
-          ),
+          LayoutBuilder(builder: (context, constraints) {
+            final isMobile = _isMobile(context);
+            if (isMobile) {
+              return Column(
+                children: [
+                  _buildFeatureItem(
+                    Icons.list_alt,
+                    'Free & Premium Listings',
+                    'Free for everyone. Change and EDIT to extend your ads\nappropriate, marketing to reach more and offer\nsatisfaction through visibility, reach, and rating.',
+                    kAppPrimaryColor,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildFeatureItem(
+                    Icons.settings_suggest,
+                    'On-Demand Car Services',
+                    'Professional watch payments listings car services send\nextensive services, is hiring your sitting for,\ntrade and updates, local ads, building more.',
+                    kAppPrimaryColor,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildFeatureItem(
+                    Icons.security,
+                    'Secure, Easy Payments',
+                    'Fast and secure booking, family payments,\npossible, keeping services, better experience for\nusers, easy maintenance, and more.',
+                    kAppSecondaryColor,
+                  ),
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildFeatureItem(
+                  Icons.list_alt,
+                  'Free & Premium Listings',
+                  'Free for everyone. Change and EDIT to extend your ads\nappropriate, marketing to reach more and offer\nsatisfaction through visibility, reach, and rating.',
+                  kAppPrimaryColor,
+                ),
+                const SizedBox(width: 40),
+                _buildFeatureItem(
+                  Icons.settings_suggest,
+                  'On-Demand Car Services',
+                  'Professional watch payments listings car services send\nextensive services, is hiring your sitting for,\ntrade and updates, local ads, building more.',
+                  kAppPrimaryColor,
+                ),
+                const SizedBox(width: 40),
+                _buildFeatureItem(
+                  Icons.security,
+                  'Secure, Easy Payments',
+                  'Fast and secure booking, family payments,\npossible, keeping services, better experience for\nusers, easy maintenance, and more.',
+                  kAppSecondaryColor,
+                ),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 
   Widget _buildFeatureItem(IconData icon, String title, String description, Color iconColor) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF5F7FA),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: iconColor, size: 24),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFE2E8F0).withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.12),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              description,
-              style: const TextStyle(color: kAppBodyTextColor, fontSize: 14, height: 1.5),
-            ),
-          ],
-        ),
+            child: Icon(icon, color: iconColor, size: 28),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            description,
+            style: const TextStyle(color: kAppBodyTextColor, fontSize: 15, height: 1.6),
+          ),
+        ],
       ),
     );
   }
