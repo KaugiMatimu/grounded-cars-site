@@ -18,8 +18,8 @@ const Color kAppSecondaryColor = Color(0xFF7A8A98);
 const Color kAppSuccessColor = Color(0xFF3D7A65);
 const Color kAppWarningColor = Color(0xFF967E5F);
 const Color kAppErrorColor = Color(0xFF8D3434);
-const Color kAppBackgroundColor = Color(0xFFF2F4F7);
-const Color kAppCardColor = Color(0xFFF9FBFC);
+const Color kAppBackgroundColor = Color(0xFFE0E2E5);
+const Color kAppCardColor = Color(0xFFEDEFF2);
 const Color kAppHeaderTextColor = Color(0xFF1F2937);
 const Color kAppBodyTextColor = Color(0xFF4B5563);
 const Color kAppMutedTextColor = Color(0xFF6B7280);
@@ -53,6 +53,8 @@ class User {
   final bool active;
   final int listingCount;
   final bool hasPaidSubscription;
+  final int monthlyListingCount;
+  final DateTime? subscriptionStartDate;
 
   User({
     this.uid,
@@ -64,6 +66,8 @@ class User {
     this.active = true,
     this.listingCount = 0,
     this.hasPaidSubscription = false,
+    this.monthlyListingCount = 0,
+    this.subscriptionStartDate,
   });
 
   User copyWith({
@@ -76,6 +80,8 @@ class User {
     bool? active,
     int? listingCount,
     bool? hasPaidSubscription,
+    int? monthlyListingCount,
+    DateTime? subscriptionStartDate,
   }) {
     return User(
       uid: uid ?? this.uid,
@@ -87,6 +93,8 @@ class User {
       active: active ?? this.active,
       listingCount: listingCount ?? this.listingCount,
       hasPaidSubscription: hasPaidSubscription ?? this.hasPaidSubscription,
+      monthlyListingCount: monthlyListingCount ?? this.monthlyListingCount,
+      subscriptionStartDate: subscriptionStartDate ?? this.subscriptionStartDate,
     );
   }
 
@@ -101,6 +109,8 @@ class User {
       'active': active,
       'listingCount': listingCount,
       'hasPaidSubscription': hasPaidSubscription,
+      'monthlyListingCount': monthlyListingCount,
+      'subscriptionStartDate': subscriptionStartDate?.toIso8601String(),
     };
   }
 
@@ -115,6 +125,10 @@ class User {
       active: map['active'] ?? true,
       listingCount: map['listingCount'] ?? 0,
       hasPaidSubscription: map['hasPaidSubscription'] ?? false,
+      monthlyListingCount: map['monthlyListingCount'] ?? 0,
+      subscriptionStartDate: map['subscriptionStartDate'] != null 
+          ? DateTime.tryParse(map['subscriptionStartDate']) 
+          : null,
     );
   }
 }
@@ -477,7 +491,7 @@ class GroundedCarsApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: kAppBackgroundColor,
         cardColor: kAppCardColor,
-        canvasColor: kAppCardColor,
+        canvasColor: kAppBackgroundColor,
         appBarTheme: const AppBarTheme(
           backgroundColor: kAppBackgroundColor,
           foregroundColor: kAppHeaderTextColor,
@@ -737,7 +751,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: kAppCardColor,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
@@ -803,6 +817,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                             _buildNavButton('Home', AppPage.home),
                             _buildNavButton('Services', AppPage.services),
                             _buildNavButton('My Listings', AppPage.manageListings),
+                            _buildNavButton('List Your Car', AppPage.manageListings),
+                            _buildNavButton('Hire a Car', AppPage.home, onPressed: _showHirePopup),
                             _buildNavButton('Request Service', AppPage.requestService),
                             if (_isAdminUser) _buildNavButton('Admin', AppPage.admin),
                           ],
@@ -815,7 +831,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           children: [
                             Text('Hello, ${_currentUser!.fullName}', style: const TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(width: 12),
-                            ElevatedButton(
+                            OutlinedButton(
                               onPressed: () async {
                                 await FirebaseAuth.instance.signOut();
                                 setState(() {
@@ -823,9 +839,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                                   _selectedPage = AppPage.home;
                                 });
                               },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: kAppPrimaryColor,
-                                foregroundColor: Colors.white,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: kAppPrimaryColor,
+                                side: const BorderSide(color: kAppPrimaryColor, width: 2),
                                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
@@ -846,7 +862,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                               onPressed: () => setState(() => _selectedPage = AppPage.register),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: kAppPrimaryColor,
-                                side: const BorderSide(color: kAppPrimaryColor),
+                                side: const BorderSide(color: kAppPrimaryColor, width: 2),
                                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
@@ -899,13 +915,18 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             _buildDrawerNavTile('Home', AppPage.home),
             _buildDrawerNavTile('Services', AppPage.services),
             _buildDrawerNavTile('My Listings', AppPage.manageListings),
+            _buildDrawerNavTile('List Your Car', AppPage.manageListings),
+            _buildDrawerNavTile('Hire a Car', AppPage.home, onPressed: () {
+              Navigator.of(context).pop();
+              _showHirePopup();
+            }),
             _buildDrawerNavTile('Request Service', AppPage.requestService),
             if (_isAdminUser) _buildDrawerNavTile('Admin', AppPage.admin),
             const Spacer(),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: _currentUser != null
-                  ? ElevatedButton(
+                  ? OutlinedButton(
                       onPressed: () async {
                         Navigator.of(context).pop();
                         await FirebaseAuth.instance.signOut();
@@ -914,9 +935,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           _selectedPage = AppPage.home;
                         });
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAppPrimaryColor,
-                        foregroundColor: Colors.white,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kAppPrimaryColor,
+                        side: const BorderSide(color: kAppPrimaryColor, width: 2),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: const Text('Logout'),
@@ -924,14 +945,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        ElevatedButton(
+                        OutlinedButton(
                           onPressed: () {
                             Navigator.of(context).pop();
                             setState(() => _selectedPage = AppPage.login);
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: kAppPrimaryColor,
-                            foregroundColor: Colors.white,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kAppPrimaryColor,
+                            side: const BorderSide(color: kAppPrimaryColor, width: 2),
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           child: const Text('Sign In'),
@@ -944,7 +965,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           },
                           style: OutlinedButton.styleFrom(
                             foregroundColor: kAppPrimaryColor,
-                            side: const BorderSide(color: kAppPrimaryColor),
+                            side: const BorderSide(color: kAppPrimaryColor, width: 2),
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           child: const Text('Sign Up'),
@@ -958,24 +979,24 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     );
   }
 
-  Widget _buildDrawerNavTile(String label, AppPage page) {
+  Widget _buildDrawerNavTile(String label, AppPage page, {VoidCallback? onPressed}) {
     final bool active = _selectedPage == page;
     return ListTile(
       title: Text(
         label,
         style: TextStyle(
           fontWeight: active ? FontWeight.bold : FontWeight.normal,
-          color: active ? kAppLightAccentColor : Colors.white70,
+          color: active ? kAppPrimaryColor : kAppBodyTextColor,
         ),
       ),
-      onTap: () {
+      onTap: onPressed ?? () {
         Navigator.of(context).pop();
         setState(() => _selectedPage = page);
       },
     );
   }
 
-  Widget _buildNavButton(String label, AppPage page) {
+  Widget _buildNavButton(String label, AppPage page, {VoidCallback? onPressed}) {
     final bool active = _selectedPage == page;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -984,7 +1005,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           foregroundColor: active ? kAppPrimaryColor : kAppBodyTextColor,
           textStyle: TextStyle(fontWeight: active ? FontWeight.bold : FontWeight.normal),
         ),
-        onPressed: () => setState(() => _selectedPage = page),
+        onPressed: onPressed ?? () => setState(() => _selectedPage = page),
         child: Text(label),
       ),
     );
@@ -1079,8 +1100,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildRegisterSection() {
+    final isMobile = _isMobile(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      padding: _responsiveSectionPadding(context),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 780),
@@ -1089,7 +1111,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             elevation: 8,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
-              padding: const EdgeInsets.all(32.0),
+              padding: EdgeInsets.all(isMobile ? 20.0 : 32.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1100,27 +1122,33 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                       Text('Sign Up', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  const Text('Join GroundedCars and start listing, buying, and requesting services with ease.', style: TextStyle(fontSize: 16, color: kAppBodyTextColor)),
                   const SizedBox(height: 30),
                   Form(
                     key: _registerFormKey,
                     child: Column(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(child: _buildTextField(controller: _regFullNameController, label: 'Full name', prefixIcon: Icons.person, validator: _requiredValidator)),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildTextField(controller: _regEmailController, label: 'Email address', keyboardType: TextInputType.emailAddress, prefixIcon: Icons.email, validator: _requiredValidator)),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            Expanded(child: _buildTextField(controller: _regPhoneController, label: 'Phone number', keyboardType: TextInputType.phone, prefixIcon: Icons.phone_android, validator: _requiredValidator)),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildTextField(controller: _regLocationController, label: 'Location', prefixIcon: Icons.location_on, validator: _requiredValidator)),
-                          ],
-                        ),
+                        if (isMobile) ...[
+                          _buildTextField(controller: _regFullNameController, label: 'Full name', prefixIcon: Icons.person, validator: _requiredValidator),
+                          _buildTextField(controller: _regEmailController, label: 'Email address', keyboardType: TextInputType.emailAddress, prefixIcon: Icons.email, validator: _requiredValidator),
+                        ] else
+                          Row(
+                            children: [
+                              Expanded(child: _buildTextField(controller: _regFullNameController, label: 'Full name', prefixIcon: Icons.person, validator: _requiredValidator)),
+                              const SizedBox(width: 16),
+                              Expanded(child: _buildTextField(controller: _regEmailController, label: 'Email address', keyboardType: TextInputType.emailAddress, prefixIcon: Icons.email, validator: _requiredValidator)),
+                            ],
+                          ),
+                        if (isMobile) ...[
+                          _buildTextField(controller: _regPhoneController, label: 'Phone number', keyboardType: TextInputType.phone, prefixIcon: Icons.phone_android, validator: _requiredValidator),
+                          _buildTextField(controller: _regLocationController, label: 'Location', prefixIcon: Icons.location_on, validator: _requiredValidator),
+                        ] else
+                          Row(
+                            children: [
+                              Expanded(child: _buildTextField(controller: _regPhoneController, label: 'Phone number', keyboardType: TextInputType.phone, prefixIcon: Icons.phone_android, validator: _requiredValidator)),
+                              const SizedBox(width: 16),
+                              Expanded(child: _buildTextField(controller: _regLocationController, label: 'Location', prefixIcon: Icons.location_on, validator: _requiredValidator)),
+                            ],
+                          ),
                         _buildTextField(controller: _regPasswordController, label: 'Create password', obscureText: true, prefixIcon: Icons.lock, validator: _requiredValidator),
                         const SizedBox(height: 12),
                         Align(
@@ -1159,8 +1187,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildLoginSection() {
+    final isMobile = _isMobile(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      padding: _responsiveSectionPadding(context),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -1169,7 +1198,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             elevation: 8,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
-              padding: const EdgeInsets.all(32.0),
+              padding: EdgeInsets.all(isMobile ? 20.0 : 32.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1180,8 +1209,6 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                       Text('Sign In', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  const Text('Access your GroundedCars account to manage listings and request services.', style: TextStyle(fontSize: 16, color: kAppBodyTextColor)),
                   const SizedBox(height: 30),
                   Form(
                     key: _loginFormKey,
@@ -1190,19 +1217,33 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         _buildTextField(controller: _loginEmailController, label: 'Email address', keyboardType: TextInputType.emailAddress, prefixIcon: Icons.email, validator: _requiredValidator),
                         _buildTextField(controller: _loginPasswordController, label: 'Password', obscureText: true, prefixIcon: Icons.lock, validator: _requiredValidator),
                         const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            TextButton(
-                              onPressed: _showForgotPasswordDialog,
-                              child: const Text('Forgot password?', style: TextStyle(color: kAppPrimaryColor)),
-                            ),
-                            TextButton(
-                              onPressed: () => setState(() => _selectedPage = AppPage.register),
-                              child: const Text('Need an account? Sign up', style: TextStyle(color: kAppPrimaryColor)),
-                            ),
-                          ],
-                        ),
+                        isMobile
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextButton(
+                                    onPressed: _showForgotPasswordDialog,
+                                    child: const Text('Forgot password?', style: TextStyle(color: kAppPrimaryColor)),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => setState(() => _selectedPage = AppPage.register),
+                                    child: const Text('Need an account? Sign up', style: TextStyle(color: kAppPrimaryColor)),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton(
+                                    onPressed: _showForgotPasswordDialog,
+                                    child: const Text('Forgot password?', style: TextStyle(color: kAppPrimaryColor)),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => setState(() => _selectedPage = AppPage.register),
+                                    child: const Text('Need an account? Sign up', style: TextStyle(color: kAppPrimaryColor)),
+                                  ),
+                                ],
+                              ),
                         const SizedBox(height: 12),
                         ElevatedButton(
                           onPressed: _isLoading ? null : _submitLoginForm,
@@ -1257,8 +1298,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       );
     }
 
+    final isMobile = _isMobile(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      padding: _responsiveSectionPadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1272,64 +1314,103 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: _listingPackages.map((pkg) => Expanded(
-              child: Card(
-                color: pkg.isFeatured ? Color(0xFFEAF4FF) : Colors.grey.shade100,
-                margin: const EdgeInsets.only(right: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kAppHeaderTextColor)),
-                      const SizedBox(height: 8),
-                      Text(pkg.price, style: const TextStyle(fontSize: 14, color: kAppHeaderTextColor)),
-                      const SizedBox(height: 4),
-                      Text(pkg.description, style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
-                      const SizedBox(height: 8),
-                      Text('Max Listings: ${pkg.maxListings}', style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
-                      Text('Duration: ${pkg.durationDays} days', style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
-                    ],
-                  ),
+          isMobile
+              ? Column(
+                  children: _listingPackages
+                      .map((pkg) => Card(
+                            color: pkg.isFeatured ? Color(0xFFEAF4FF) : Colors.grey.shade100,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kAppHeaderTextColor)),
+                                  const SizedBox(height: 8),
+                                  Text(pkg.price, style: const TextStyle(fontSize: 14, color: kAppHeaderTextColor)),
+                                  const SizedBox(height: 8),
+                                  Text('Max Listings: ${pkg.maxListings}', style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
+                                  Text('Duration: ${pkg.durationDays} days', style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
+                                ],
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                )
+              : Row(
+                  children: _listingPackages
+                      .map((pkg) => Expanded(
+                            child: Card(
+                              color: pkg.isFeatured ? Color(0xFFEAF4FF) : Colors.grey.shade100,
+                              margin: const EdgeInsets.only(right: 12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kAppHeaderTextColor)),
+                                    const SizedBox(height: 8),
+                                    Text(pkg.price, style: const TextStyle(fontSize: 14, color: kAppHeaderTextColor)),
+                                    const SizedBox(height: 8),
+                                    Text('Max Listings: ${pkg.maxListings}', style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
+                                    Text('Duration: ${pkg.durationDays} days', style: const TextStyle(fontSize: 12, color: kAppBodyTextColor)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ))
+                      .toList(),
                 ),
-              ),
-            )).toList(),
-          ),
           const SizedBox(height: 24),
           Form(
             key: _listingFormKey,
             child: Column(
               children: [
                 _buildTextField(controller: _listingTitleController, label: 'Listing Title', validator: _requiredValidator),
-                Row(
-                  children: [
-                    Expanded(child: _buildTextField(controller: _listingMakeController, label: 'Make', validator: _requiredValidator)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildTextField(controller: _listingModelController, label: 'Model', validator: _requiredValidator)),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(child: _buildTextField(controller: _listingYearController, label: 'Year', keyboardType: TextInputType.number, validator: _requiredValidator)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildTextField(controller: _listingMileageController, label: 'Mileage', keyboardType: TextInputType.number, validator: _requiredValidator)),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(child: _buildDropdownField(controller: _listingConditionController, label: 'Condition', items: ['Used', 'Grounded'], validator: _requiredValidator)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildDropdownField(controller: _listingTransmissionController, label: 'Transmission', items: ['Hybrid', 'Manual', 'Automatic'], validator: _requiredValidator)),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(child: _buildDropdownField(controller: _listingFuelController, label: 'Fuel Type', items: ['Hybrid', 'Petrol', 'Diesel', 'Electronic'], validator: _requiredValidator)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildTextField(controller: _listingLocationController, label: 'Location', validator: _requiredValidator)),
-                  ],
-                ),
+                if (isMobile) ...[
+                  _buildTextField(controller: _listingMakeController, label: 'Make', validator: _requiredValidator),
+                  _buildTextField(controller: _listingModelController, label: 'Model', validator: _requiredValidator),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(child: _buildTextField(controller: _listingMakeController, label: 'Make', validator: _requiredValidator)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildTextField(controller: _listingModelController, label: 'Model', validator: _requiredValidator)),
+                    ],
+                  ),
+                if (isMobile) ...[
+                  _buildTextField(controller: _listingYearController, label: 'Year', keyboardType: TextInputType.number, validator: _requiredValidator),
+                  _buildTextField(controller: _listingMileageController, label: 'Mileage', keyboardType: TextInputType.number, validator: _requiredValidator),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(child: _buildTextField(controller: _listingYearController, label: 'Year', keyboardType: TextInputType.number, validator: _requiredValidator)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildTextField(controller: _listingMileageController, label: 'Mileage', keyboardType: TextInputType.number, validator: _requiredValidator)),
+                    ],
+                  ),
+                if (isMobile) ...[
+                  _buildDropdownField(controller: _listingConditionController, label: 'Condition', items: ['Used', 'Grounded'], validator: _requiredValidator),
+                  _buildDropdownField(controller: _listingTransmissionController, label: 'Transmission', items: ['Hybrid', 'Manual', 'Automatic'], validator: _requiredValidator),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(child: _buildDropdownField(controller: _listingConditionController, label: 'Condition', items: ['Used', 'Grounded'], validator: _requiredValidator)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildDropdownField(controller: _listingTransmissionController, label: 'Transmission', items: ['Hybrid', 'Manual', 'Automatic'], validator: _requiredValidator)),
+                    ],
+                  ),
+                if (isMobile) ...[
+                  _buildDropdownField(controller: _listingFuelController, label: 'Fuel Type', items: ['Hybrid', 'Petrol', 'Diesel', 'Electronic'], validator: _requiredValidator),
+                  _buildTextField(controller: _listingLocationController, label: 'Location', validator: _requiredValidator),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(child: _buildDropdownField(controller: _listingFuelController, label: 'Fuel Type', items: ['Hybrid', 'Petrol', 'Diesel', 'Electronic'], validator: _requiredValidator)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildTextField(controller: _listingLocationController, label: 'Location', validator: _requiredValidator)),
+                    ],
+                  ),
                 _buildTextField(controller: _listingPriceController, label: 'Price', validator: _requiredValidator),
                 DropdownButtonFormField<String>(
                   value: _listingStatusController.text.isEmpty ? null : _listingStatusController.text,
@@ -1363,13 +1444,6 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                       setState(() => _selectedListingPackage = value);
                     }
                   },
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 16),
-                  child: Text(
-                    _listingPackages.firstWhere((pkg) => pkg.name == _selectedListingPackage).description,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
                 ),
                 _buildTextField(controller: _listingDescriptionController, label: 'Description', validator: _requiredValidator),
                 const SizedBox(height: 16),
@@ -1464,9 +1538,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildAdminSection() {
+    final isMobile = _isMobile(context);
     if (!_isAdminUser) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        padding: _responsiveSectionPadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1486,24 +1561,41 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     return DefaultTabController(
       length: 5,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        padding: _responsiveSectionPadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Admin Dashboard', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-                Wrap(
-                  spacing: 16,
-                  children: [
-                    _buildAdminSummaryCard('Users', _users.length.toString(), 'Manage accounts'),
-                    _buildAdminSummaryCard('Listings', _listings.length.toString(), 'Approve / feature'),
-                    _buildAdminSummaryCard('Payments', _paymentRecords.length.toString(), 'Track invoices'),
-                  ],
-                ),
-              ],
-            ),
+            isMobile
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Admin Dashboard', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 16,
+                        children: [
+                          _buildAdminSummaryCard('Users', _users.length.toString(), 'Manage accounts'),
+                          _buildAdminSummaryCard('Listings', _listings.length.toString(), 'Approve / feature'),
+                          _buildAdminSummaryCard('Payments', _paymentRecords.length.toString(), 'Track invoices'),
+                        ],
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Admin Dashboard', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                      Wrap(
+                        spacing: 16,
+                        children: [
+                          _buildAdminSummaryCard('Users', _users.length.toString(), 'Manage accounts'),
+                          _buildAdminSummaryCard('Listings', _listings.length.toString(), 'Approve / feature'),
+                          _buildAdminSummaryCard('Payments', _paymentRecords.length.toString(), 'Track invoices'),
+                        ],
+                      ),
+                    ],
+                  ),
             const SizedBox(height: 32),
             const TabBar(
               isScrollable: true,
@@ -1740,7 +1832,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           ),
                         if (user.email != 'admin@groundedcars.co.ke')
                           OutlinedButton(
-                            onPressed: () => _updateUser(user.copyWith(hasPaidSubscription: !user.hasPaidSubscription)),
+                            onPressed: () {
+                              final isActivating = !user.hasPaidSubscription;
+                              _updateUser(user.copyWith(
+                                hasPaidSubscription: isActivating,
+                                subscriptionStartDate: isActivating ? DateTime.now() : null,
+                                monthlyListingCount: isActivating ? 0 : user.monthlyListingCount,
+                              ));
+                            },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: user.hasPaidSubscription ? Colors.orange : kAppSuccessColor,
                               side: BorderSide(color: user.hasPaidSubscription ? Colors.orange : kAppSuccessColor),
@@ -2071,7 +2170,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   Widget _buildServiceRequestSection() {
     if (_currentUser == null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        padding: _responsiveSectionPadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2092,7 +2191,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      padding: _responsiveSectionPadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2155,28 +2254,49 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildServicesPage() {
+    final isMobile = _isMobile(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      padding: _responsiveSectionPadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Text(
-                'Services Marketplace',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () => setState(() => _selectedPage = AppPage.home),
-                style: TextButton.styleFrom(
-                  foregroundColor: kAppPrimaryColor,
-                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+          isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Services Marketplace',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => setState(() => _selectedPage = AppPage.home),
+                      style: TextButton.styleFrom(
+                        foregroundColor: kAppPrimaryColor,
+                        padding: EdgeInsets.zero,
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      child: const Text('Back to Home'),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    const Text(
+                      'Services Marketplace',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppHeaderTextColor),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => setState(() => _selectedPage = AppPage.home),
+                      style: TextButton.styleFrom(
+                        foregroundColor: kAppPrimaryColor,
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      child: const Text('Back to Home'),
+                    ),
+                  ],
                 ),
-                child: const Text('Back to Home'),
-              ),
-            ],
-          ),
           const SizedBox(height: 24),
           const Text(
             'Book on-demand mobile automotive services to your home or office.',
@@ -2198,10 +2318,11 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildServiceDetailsSection() {
+    final isMobile = _isMobile(context);
     final service = _selectedService;
     if (service == null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        padding: _responsiveSectionPadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2217,20 +2338,37 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      padding: _responsiveSectionPadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(service.title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: kAppHeaderTextColor)),
-              const Spacer(),
-              TextButton(
-                onPressed: () => setState(() => _selectedPage = AppPage.services),
-                child: const Text('Back to Services', style: TextStyle(color: kAppPrimaryColor)),
-              ),
-            ],
-          ),
+          isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(service.title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppHeaderTextColor)),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => setState(() => _selectedPage = AppPage.services),
+                      style: TextButton.styleFrom(
+                        foregroundColor: kAppPrimaryColor,
+                        padding: EdgeInsets.zero,
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      child: const Text('Back to Services'),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Text(service.title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: kAppHeaderTextColor)),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => setState(() => _selectedPage = AppPage.services),
+                      child: const Text('Back to Services', style: TextStyle(color: kAppPrimaryColor)),
+                    ),
+                  ],
+                ),
           const SizedBox(height: 24),
           Image.asset(
             service.imageUrl,
@@ -2439,9 +2577,28 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         return;
       }
 
-      if (_currentUser != null && _currentUser!.listingCount >= 7 && !_currentUser!.hasPaidSubscription) {
-        _showAppSnackBar('You have reached the free limit of 7 listings. Please upgrade to Premium to upload more.', isError: true);
-        return;
+      if (_currentUser != null) {
+        bool canUpload = false;
+        if (_currentUser!.listingCount < 10) {
+          canUpload = true;
+        } else if (_currentUser!.hasPaidSubscription) {
+          if (_currentUser!.subscriptionStartDate != null) {
+            final daysSinceStart = DateTime.now().difference(_currentUser!.subscriptionStartDate!).inDays;
+            if (daysSinceStart < 30) {
+              if (_currentUser!.monthlyListingCount < 1000) {
+                canUpload = true;
+              }
+            }
+          } else {
+            // Allowance for missing start date
+            canUpload = true;
+          }
+        }
+
+        if (!canUpload) {
+          _showAppSnackBar('You have reached your listing limit. Please subscribe or renew to upload more images.', isError: true);
+          return;
+        }
       }
 
       FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -3068,13 +3225,45 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
     if (!_listingFormKey.currentState!.validate() || _currentUser == null) return;
     
-    if (_currentUser!.listingCount >= 7 && !_currentUser!.hasPaidSubscription) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You have reached the limit of 7 listings. Please pay KES 2,000 to list more.'),
-          duration: Duration(seconds: 5),
-        ),
-      );
+    // Check subscription status and listing limits
+    bool canList = false;
+    String errorMessage = '';
+
+    if (_currentUser!.listingCount < 10) {
+      canList = true;
+    } else if (_currentUser!.hasPaidSubscription) {
+      if (_currentUser!.subscriptionStartDate != null) {
+        final now = DateTime.now();
+        final daysSinceStart = now.difference(_currentUser!.subscriptionStartDate!).inDays;
+        
+        if (daysSinceStart < 30) {
+          if (_currentUser!.monthlyListingCount < 1000) {
+            canList = true;
+          } else {
+            errorMessage = 'You have reached your monthly limit of 1000 listings. Please wait for renewal or contact support.';
+          }
+        } else {
+          errorMessage = 'Your monthly subscription has expired. Please renew to continue listing.';
+        }
+      } else {
+        // If hasPaidSubscription is true but no start date, we might want to allow it or set a start date
+        // For now, let's treat it as a new subscription starting now if we were to be proactive, 
+        // but here we'll just show an error or allow it.
+        canList = true; // Temporary allowance or you could set errorMessage
+      }
+    } else {
+      errorMessage = 'You have reached the free limit of 10 listings. Please subscribe for KES 2,000 monthly to list up to 1000 cars.';
+    }
+
+    if (!canList) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
       return;
     }
 
@@ -3120,11 +3309,41 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       _fetchListings();
       // Update user listing count
       if (_currentUser != null) {
-        final updatedUser = _currentUser!.copyWith(listingCount: _currentUser!.listingCount + 1);
+        int newListingCount = _currentUser!.listingCount + 1;
+        int newMonthlyCount = _currentUser!.monthlyListingCount;
+        DateTime? newSubStartDate = _currentUser!.subscriptionStartDate;
+
+        if (_currentUser!.hasPaidSubscription) {
+          if (_currentUser!.subscriptionStartDate != null) {
+            final now = DateTime.now();
+            final daysSinceStart = now.difference(_currentUser!.subscriptionStartDate!).inDays;
+            if (daysSinceStart >= 30) {
+              newMonthlyCount = 1;
+              newSubStartDate = now;
+            } else {
+              newMonthlyCount += 1;
+            }
+          } else {
+            newMonthlyCount += 1;
+            newSubStartDate = DateTime.now();
+          }
+        }
+
+        final updatedUser = _currentUser!.copyWith(
+          listingCount: newListingCount,
+          monthlyListingCount: newMonthlyCount,
+          subscriptionStartDate: newSubStartDate,
+        );
+
         FirebaseFirestore.instance
             .collection('users')
             .doc(_currentUser!.uid)
-            .update({'listingCount': updatedUser.listingCount});
+            .update({
+          'listingCount': updatedUser.listingCount,
+          'monthlyListingCount': updatedUser.monthlyListingCount,
+          'subscriptionStartDate': updatedUser.subscriptionStartDate?.toIso8601String(),
+        });
+
         if (mounted) {
           setState(() {
             _currentUser = updatedUser;
@@ -3373,17 +3592,18 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
   Widget _buildHeroSection() {
     final isMobile = _isMobile(context);
+    const Color heroBg = Color(0xFF1B261C); // Even duller/darker greenish
     return Container(
       width: double.infinity,
       constraints: BoxConstraints(minHeight: isMobile ? 520 : 620),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: kAppBackgroundColor,
+        color: heroBg,
         image: DecorationImage(
           image: const AssetImage('public/img/hero-image.png'),
           fit: BoxFit.cover,
           alignment: Alignment.centerRight,
-          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.45), BlendMode.darken),
+          colorFilter: ColorFilter.mode(heroBg.withOpacity(0.7), BlendMode.darken),
         ),
       ),
       padding: _responsiveSectionPadding(context),
@@ -3398,7 +3618,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    color: Colors.white, // Brighter white
                     height: 1.1,
                   ),
                 ),
@@ -3408,7 +3628,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.white70,
+                    color: Color(0xFFE5E7EB), // Brighter light grey
                     height: 1.5,
                   ),
                 ),
@@ -3418,8 +3638,6 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   spacing: 16,
                   runSpacing: 16,
                   children: [
-                    _buildLargeButton('List Your Car', kAppPrimaryColor, AppPage.manageListings),
-                    _buildLargeButton('Hire a Car', kAppSecondaryColor, AppPage.home, onPressed: _showHirePopup),
                     _buildLargeButton('Request Service', kAppPrimaryColor, AppPage.services),
                   ],
                 ),
@@ -3441,7 +3659,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         style: TextStyle(
                           fontSize: 48,
                           fontWeight: FontWeight.w900,
-                          color: Colors.white,
+                          color: Colors.white, // Brighter white
                           height: 1.1,
                         ),
                       ),
@@ -3451,7 +3669,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 18,
-                          color: Colors.white70,
+                          color: Color(0xFFE5E7EB), // Brighter light grey
                           height: 1.5,
                         ),
                       ),
@@ -3461,8 +3679,6 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         spacing: 16,
                         runSpacing: 16,
                         children: [
-                          _buildLargeButton('List Your Car', kAppPrimaryColor, AppPage.manageListings),
-                          _buildLargeButton('Hire a Car', kAppSecondaryColor, AppPage.home, onPressed: _showHirePopup),
                           _buildLargeButton('Request Service', kAppPrimaryColor, AppPage.services),
                         ],
                       ),
@@ -3475,14 +3691,13 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildLargeButton(String label, Color color, AppPage page, {VoidCallback? onPressed}) {
-    return ElevatedButton(
+    return OutlinedButton(
       onPressed: onPressed ?? () => setState(() => _selectedPage = page),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
+      style: OutlinedButton.styleFrom(
         foregroundColor: Colors.white,
+        side: const BorderSide(color: Colors.white, width: 2),
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        elevation: 2,
       ),
       child: Text(
         label,
@@ -3677,63 +3892,113 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildCarListingsSection() {
+    final isMobile = _isMobile(context);
     return Container(
       color: kAppBackgroundColor,
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      padding: _responsiveSectionPadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: kAppPrimaryColor,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Explore Car Listings',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: kAppHeaderTextColor,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ],
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _selectedMake = 'All Makes';
-                    _selectedModel = 'Model';
-                    _selectedYear = 'Year';
-                    _selectedCondition = 'Condition';
-                    _selectedTab = 'All';
-                  });
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: kAppPrimaryColor,
-                  textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                child: const Row(
+          isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('View All'),
-                    SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_rounded, size: 18),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: kAppPrimaryColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Explore Car Listings',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: kAppHeaderTextColor,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedMake = 'All Makes';
+                          _selectedModel = 'Model';
+                          _selectedYear = 'Year';
+                          _selectedCondition = 'Condition';
+                          _selectedTab = 'All';
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: kAppPrimaryColor,
+                        padding: EdgeInsets.zero,
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('View All'),
+                          SizedBox(width: 4),
+                          Icon(Icons.arrow_forward_rounded, size: 18),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: kAppPrimaryColor,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Explore Car Listings',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: kAppHeaderTextColor,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedMake = 'All Makes';
+                          _selectedModel = 'Model';
+                          _selectedYear = 'Year';
+                          _selectedCondition = 'Condition';
+                          _selectedTab = 'All';
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: kAppPrimaryColor,
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      child: const Row(
+                        children: [
+                          Text('View All'),
+                          SizedBox(width: 4),
+                          Icon(Icons.arrow_forward_rounded, size: 18),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
-          ),
           const SizedBox(height: 32),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -3963,33 +4228,58 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           ),
                           const SizedBox(height: 24),
                           if (_isAdminUser)
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {},
-                                    icon: const Icon(Icons.phone),
-                                    label: Text(listing.ownerPhone),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: kAppPrimaryColor,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 20),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () {},
-                                    icon: const Icon(Icons.email),
-                                    label: const Text('Email Owner'),
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 20),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
+                            isMobile
+                                ? Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      ElevatedButton.icon(
+                                        onPressed: () {},
+                                        icon: const Icon(Icons.phone),
+                                        label: Text(listing.ownerPhone),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: kAppPrimaryColor,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(vertical: 20),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      OutlinedButton.icon(
+                                        onPressed: () {},
+                                        icon: const Icon(Icons.email),
+                                        label: const Text('Email Owner'),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 20),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () {},
+                                          icon: const Icon(Icons.phone),
+                                          label: Text(listing.ownerPhone),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: kAppPrimaryColor,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(vertical: 20),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () {},
+                                          icon: const Icon(Icons.email),
+                                          label: const Text('Email Owner'),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 20),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
                           else
                             const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -4451,13 +4741,13 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildSmallLargeButton(String label, Color color, IconData icon, {VoidCallback? onPressed}) {
-    return ElevatedButton.icon(
+    return OutlinedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon),
       label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color, width: 2),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -4579,7 +4869,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   Widget _buildFooter() {
     return Container(
       color: Color(0xFF111827),
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 40),
+      padding: _responsiveSectionPadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -4633,14 +4923,15 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           ),
           const SizedBox(height: 32),
           Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              alignment: WrapAlignment.center,
               children: [
                 _buildWhatsAppGroupButton(
                   label: 'Join Group A',
                   url: 'https://chat.whatsapp.com/INBzE6XzEkxHLbukiutVnH',
                 ),
-                const SizedBox(width: 32),
                 _buildWhatsAppGroupButton(
                   label: 'Join Group B',
                   url: 'https://chat.whatsapp.com/Ep1RHz89pxU3kQNuEO8gyO',
