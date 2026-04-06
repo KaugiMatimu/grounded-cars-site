@@ -3601,9 +3601,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         color: heroBg,
         image: DecorationImage(
           image: const AssetImage('public/img/hero-image.png'),
-          fit: BoxFit.cover,
-          alignment: Alignment.centerRight,
-          colorFilter: ColorFilter.mode(heroBg.withOpacity(0.7), BlendMode.darken),
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.center,
+          colorFilter: ColorFilter.mode(heroBg.withOpacity(0.5), BlendMode.darken),
         ),
       ),
       padding: _responsiveSectionPadding(context),
