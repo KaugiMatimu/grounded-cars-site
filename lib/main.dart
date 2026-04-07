@@ -829,7 +829,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           children: [
                             Text('Hello, ${_currentUser!.fullName}', style: const TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(width: 12),
-                            OutlinedButton(
+                            TextButton(
                               onPressed: () async {
                                 await FirebaseAuth.instance.signOut();
                                 setState(() {
@@ -837,9 +837,8 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                                   _selectedPage = AppPage.home;
                                 });
                               },
-                              style: OutlinedButton.styleFrom(
+                              style: TextButton.styleFrom(
                                 foregroundColor: kAppPrimaryColor,
-                                side: const BorderSide(color: kAppPrimaryColor, width: 2),
                                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
@@ -856,11 +855,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                               child: const Text('Sign In'),
                             ),
                             const SizedBox(width: 12),
-                            OutlinedButton(
+                            TextButton(
                               onPressed: () => setState(() => _selectedPage = AppPage.register),
-                              style: OutlinedButton.styleFrom(
+                              style: TextButton.styleFrom(
                                 foregroundColor: kAppPrimaryColor,
-                                side: const BorderSide(color: kAppPrimaryColor, width: 2),
                                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
@@ -919,7 +917,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: _currentUser != null
-                  ? OutlinedButton(
+                  ? TextButton(
                       onPressed: () async {
                         Navigator.of(context).pop();
                         await FirebaseAuth.instance.signOut();
@@ -928,38 +926,38 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                           _selectedPage = AppPage.home;
                         });
                       },
-                      style: OutlinedButton.styleFrom(
+                      style: TextButton.styleFrom(
                         foregroundColor: kAppPrimaryColor,
-                        side: const BorderSide(color: kAppPrimaryColor, width: 2),
                         padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       child: const Text('Logout'),
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        OutlinedButton(
+                        TextButton(
                           onPressed: () {
                             Navigator.of(context).pop();
                             setState(() => _selectedPage = AppPage.login);
                           },
-                          style: OutlinedButton.styleFrom(
+                          style: TextButton.styleFrom(
                             foregroundColor: kAppPrimaryColor,
-                            side: const BorderSide(color: kAppPrimaryColor, width: 2),
                             padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           child: const Text('Sign In'),
                         ),
                         const SizedBox(height: 12),
-                        OutlinedButton(
+                        TextButton(
                           onPressed: () {
                             Navigator.of(context).pop();
                             setState(() => _selectedPage = AppPage.register);
                           },
-                          style: OutlinedButton.styleFrom(
+                          style: TextButton.styleFrom(
                             foregroundColor: kAppPrimaryColor,
-                            side: const BorderSide(color: kAppPrimaryColor, width: 2),
                             padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           child: const Text('Sign Up'),
                         ),
@@ -2617,9 +2615,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       int successCount = 0;
       int failCount = 0;
 
-      for (var file in result.files) {
+      final List<Future<void>> uploadFutures = result.files.asMap().entries.map((entry) async {
+        final index = entry.key;
+        final file = entry.value;
         try {
-          final fileName = 'listing_images/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+          // Use unique file names to avoid collisions, especially when uploading in parallel
+          final fileName = 'listing_images/${DateTime.now().millisecondsSinceEpoch}_${index}_${file.name}';
           final storageRef = FirebaseStorage.instance.ref().child(fileName);
           final metadata = SettableMetadata(contentType: _getContentType(file.name));
 
@@ -2630,25 +2631,28 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
           if (fileBytes == null) {
             failCount++;
-            continue;
+            return;
           }
 
           final uploadTask = storageRef.putData(fileBytes, metadata);
           
           // Add a timeout to prevent infinite loading
-          final snapshot = await uploadTask.timeout(const Duration(seconds: 30));
+          final snapshot = await uploadTask.timeout(const Duration(seconds: 45));
           final downloadUrl = await snapshot.ref.getDownloadURL();
 
-          if (!mounted) break;
-          setState(() {
-            _listingImageUrls.add(downloadUrl);
-          });
-          successCount++;
+          if (mounted) {
+            setState(() {
+              _listingImageUrls.add(downloadUrl);
+            });
+            successCount++;
+          }
         } catch (e) {
           debugPrint('Image upload error: $e');
           failCount++;
         }
-      }
+      }).toList();
+
+      await Future.wait(uploadFutures);
 
       if (mounted) {
         setState(() => _isUploadingImages = false);
@@ -3610,21 +3614,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    OutlinedButton(
+                    TextButton(
                       onPressed: () => setState(() => _selectedPage = AppPage.manageListings),
-                      style: OutlinedButton.styleFrom(
+                      style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white, width: 1.5),
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       ),
                       child: const Text('List Your Car', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
-                    OutlinedButton(
+                    TextButton(
                       onPressed: _showHirePopup,
-                      style: OutlinedButton.styleFrom(
+                      style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white, width: 1.5),
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       ),
@@ -3679,21 +3681,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                         spacing: 24,
                         runSpacing: 16,
                         children: [
-                          OutlinedButton(
+                          TextButton(
                             onPressed: () => setState(() => _selectedPage = AppPage.manageListings),
-                            style: OutlinedButton.styleFrom(
+                            style: TextButton.styleFrom(
                               foregroundColor: Colors.white,
-                              side: const BorderSide(color: Colors.white, width: 2),
                               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                             ),
                             child: const Text('List Your Car', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                           ),
-                          OutlinedButton(
+                          TextButton(
                             onPressed: _showHirePopup,
-                            style: OutlinedButton.styleFrom(
+                            style: TextButton.styleFrom(
                               foregroundColor: Colors.white,
-                              side: const BorderSide(color: Colors.white, width: 2),
                               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                             ),
@@ -3740,11 +3740,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildLargeButton(String label, Color color, AppPage page, {VoidCallback? onPressed}) {
-    return OutlinedButton(
+    return TextButton(
       onPressed: onPressed ?? () => setState(() => _selectedPage = page),
-      style: OutlinedButton.styleFrom(
+      style: TextButton.styleFrom(
         foregroundColor: Colors.white,
-        side: const BorderSide(color: Colors.white, width: 2),
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -4292,11 +4291,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                                         ),
                                       ),
                                       const SizedBox(height: 16),
-                                      OutlinedButton.icon(
+                                      TextButton.icon(
                                         onPressed: () {},
                                         icon: const Icon(Icons.email),
                                         label: const Text('Email Owner'),
-                                        style: OutlinedButton.styleFrom(
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: kAppSecondaryColor,
                                           padding: const EdgeInsets.symmetric(vertical: 20),
                                         ),
                                       ),
@@ -4318,11 +4318,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                                       ),
                                       const SizedBox(width: 16),
                                       Expanded(
-                                        child: OutlinedButton.icon(
+                                        child: TextButton.icon(
                                           onPressed: () {},
                                           icon: const Icon(Icons.email),
                                           label: const Text('Email Owner'),
-                                          style: OutlinedButton.styleFrom(
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: kAppSecondaryColor,
                                             padding: const EdgeInsets.symmetric(vertical: 20),
                                           ),
                                         ),
@@ -4699,11 +4700,10 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: OutlinedButton(
+                      child: TextButton(
                         onPressed: () => _navigateToServiceRequest(service.title),
-                        style: OutlinedButton.styleFrom(
+                        style: TextButton.styleFrom(
                           foregroundColor: Colors.white70,
-                          side: const BorderSide(color: Colors.white38),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                         ),
                         child: const Text('Request'),
@@ -4790,13 +4790,12 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildSmallLargeButton(String label, Color color, IconData icon, {VoidCallback? onPressed}) {
-    return OutlinedButton.icon(
+    return TextButton.icon(
       onPressed: onPressed,
       icon: Icon(icon),
       label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: color,
-        side: BorderSide(color: color, width: 2),
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
