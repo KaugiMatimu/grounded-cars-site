@@ -817,8 +817,6 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                             _buildNavButton('Home', AppPage.home),
                             _buildNavButton('Services', AppPage.services),
                             _buildNavButton('My Listings', AppPage.manageListings),
-                            _buildNavButton('List Your Car', AppPage.manageListings),
-                            _buildNavButton('Hire a Car', AppPage.home, onPressed: _showHirePopup),
                             _buildNavButton('Request Service', AppPage.requestService),
                             if (_isAdminUser) _buildNavButton('Admin', AppPage.admin),
                           ],
@@ -915,11 +913,6 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             _buildDrawerNavTile('Home', AppPage.home),
             _buildDrawerNavTile('Services', AppPage.services),
             _buildDrawerNavTile('My Listings', AppPage.manageListings),
-            _buildDrawerNavTile('List Your Car', AppPage.manageListings),
-            _buildDrawerNavTile('Hire a Car', AppPage.home, onPressed: () {
-              Navigator.of(context).pop();
-              _showHirePopup();
-            }),
             _buildDrawerNavTile('Request Service', AppPage.requestService),
             if (_isAdminUser) _buildDrawerNavTile('Admin', AppPage.admin),
             const Spacer(),
@@ -3612,6 +3605,34 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => setState(() => _selectedPage = AppPage.manageListings),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white, width: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      ),
+                      child: const Text('List Your Car', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    OutlinedButton(
+                      onPressed: _showHirePopup,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white, width: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      ),
+                      child: const Text('Hire a Car', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 30),
                 const Text(
                   'Welcome to\nGroundedCars Kenya',
                   textAlign: TextAlign.center,
@@ -3653,6 +3674,34 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 24,
+                        runSpacing: 16,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => setState(() => _selectedPage = AppPage.manageListings),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white, width: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                            child: const Text('List Your Car', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                          ),
+                          OutlinedButton(
+                            onPressed: _showHirePopup,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white, width: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                            child: const Text('Hire a Car', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 50),
                       const Text(
                         'Welcome to\nGroundedCars Kenya',
                         textAlign: TextAlign.center,
