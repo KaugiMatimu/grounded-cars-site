@@ -559,6 +559,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     ),
   ];
 
+  int _adminTabIndex = 0;
   final GlobalKey<FormState> _registerFormKey = GlobalKey<FormState>();
   final GlobalKey<FormState> _loginFormKey = GlobalKey<FormState>();
   final GlobalKey<FormState> _listingFormKey = GlobalKey<FormState>();
@@ -601,9 +602,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   final List<ListingPackage> _listingPackages = [
     ListingPackage(
       name: 'Free Package',
-      description: 'Up to 7 listings with basic visibility.',
+      description: 'Up to 10 listings with basic visibility.',
       price: 'KES 0',
-      maxListings: 7,
+      maxListings: 10,
       isFeatured: false,
       durationDays: 30,
     ),
@@ -1551,6 +1552,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
 
     return DefaultTabController(
       length: 5,
+      initialIndex: _adminTabIndex,
       child: Padding(
         padding: _responsiveSectionPadding(context),
         child: Column(
@@ -1562,14 +1564,19 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     children: [
                       const Text('Admin Dashboard', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 20),
-                      Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
-                        children: [
-                          _buildAdminSummaryCard('Users', _users.length.toString(), 'Manage accounts'),
-                          _buildAdminSummaryCard('Listings', _listings.length.toString(), 'Approve / feature'),
-                          _buildAdminSummaryCard('Payments', _paymentRecords.length.toString(), 'Track invoices'),
-                        ],
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final cardWidth = (constraints.maxWidth - 16) / 2;
+                          return Wrap(
+                            spacing: 16,
+                            runSpacing: 16,
+                            children: [
+                              _buildAdminSummaryCard('Users', _users.length.toString(), 'Manage accounts', width: cardWidth > 160 ? cardWidth : double.infinity),
+                              _buildAdminSummaryCard('Listings', _listings.length.toString(), 'Approve / feature', width: cardWidth > 160 ? cardWidth : double.infinity),
+                              _buildAdminSummaryCard('Payments', _paymentRecords.length.toString(), 'Track invoices', width: cardWidth > 160 ? cardWidth : double.infinity),
+                            ],
+                          );
+                        }
                       ),
                     ],
                   )
@@ -1588,10 +1595,15 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     ],
                   ),
             const SizedBox(height: 32),
-            const TabBar(
+            TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              tabs: [
+              onTap: (index) {
+                setState(() {
+                  _adminTabIndex = index;
+                });
+              },
+              tabs: const [
                 Tab(text: 'Listings Management'),
                 Tab(text: 'User Management'),
                 Tab(text: 'Service Requests'),
@@ -1604,29 +1616,35 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               labelStyle: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
-            SizedBox(
-              height: 800,
-              child: TabBarView(
-                children: [
-                  _buildAdminListingsTab(),
-                  _buildAdminUsersTab(),
-                  _buildAdminServiceRequestsTab(),
-                  _buildAdminPackagesTab(),
-                  _buildAdminPaymentsTab(),
-                ],
-              ),
-            ),
+            _buildAdminTabContent(_adminTabIndex),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildAdminTabContent(int index) {
+    switch (index) {
+      case 0:
+        return _buildAdminListingsTab();
+      case 1:
+        return _buildAdminUsersTab();
+      case 2:
+        return _buildAdminServiceRequestsTab();
+      case 3:
+        return _buildAdminPackagesTab();
+      case 4:
+        return _buildAdminPaymentsTab();
+      default:
+        return _buildAdminListingsTab();
+    }
+  }
+
   Widget _buildAdminListingsTab() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final isMobile = _isMobile(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
           const Text('Manage Car Listings', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           if (_listings.isEmpty)
@@ -1642,100 +1660,143 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   margin: const EdgeInsets.only(bottom: 16),
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 120,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            image: DecorationImage(
-                              image: NetworkImage(listing.imageUrls.isNotEmpty ? listing.imageUrls[0] : 'https://images.unsplash.com/photo-1542362567-b058c02b56f2?q=80&w=2070&auto=format&fit=crop'),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          child: Column(
+                    child: isMobile
+                        ? Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Text(listing.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                                  const SizedBox(width: 12),
-                                  _buildStatusChip(listing.approvalStatus),
-                                  if (listing.isFeatured)
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 8.0),
-                                      child: Chip(
-                                        label: const Text('FEATURED', style: TextStyle(fontSize: 10, color: Colors.white)),
-                                        backgroundColor: kAppWarningColor,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ),
-                                ],
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  listing.imageUrls.isNotEmpty ? listing.imageUrls[0] : 'https://images.unsplash.com/photo-1542362567-b058c02b56f2?q=80&w=2070&auto=format&fit=crop',
+                                  width: double.infinity,
+                                  height: 200,
+                                  fit: BoxFit.cover,
+                                ),
                               ),
-                              const SizedBox(height: 8),
-                              Text('Owner: ${listing.ownerName} (${listing.ownerEmail})'),
-                              Text('Package: ${listing.packageType} • Channel: ${listing.status}'),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 12,
-                                runSpacing: 8,
-                                children: [
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _selectedCarListing = listing;
-                                        _selectedPage = AppPage.listingDetails;
-                                      });
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blueGrey,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: const Text('View Details'),
+                              const SizedBox(height: 16),
+                              _buildListingCardDetails(listing, isMobile),
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 120,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  image: DecorationImage(
+                                    image: NetworkImage(listing.imageUrls.isNotEmpty ? listing.imageUrls[0] : 'https://images.unsplash.com/photo-1542362567-b058c02b56f2?q=80&w=2070&auto=format&fit=crop'),
+                                    fit: BoxFit.cover,
                                   ),
-                                  if (listing.approvalStatus == 'Pending')
-                                    ElevatedButton(
-                                      onPressed: () => _updateListing(listing.copyWith(approvalStatus: 'Approved')),
-                                      style: ElevatedButton.styleFrom(backgroundColor: kAppSuccessColor, foregroundColor: Colors.white),
-                                      child: const Text('Approve'),
-                                    ),
-                                  if (listing.approvalStatus == 'Pending')
-                                    OutlinedButton(
-                                      onPressed: () => _updateListing(listing.copyWith(approvalStatus: 'Rejected')),
-                                      child: const Text('Reject'),
-                                    ),
-                                  if (listing.approvalStatus == 'Approved')
-                                    ElevatedButton.icon(
-                                      onPressed: () => _updateListing(listing.copyWith(isFeatured: !listing.isFeatured)),
-                                      icon: Icon(listing.isFeatured ? Icons.star : Icons.star_border),
-                                      label: Text(listing.isFeatured ? 'Unfeature' : 'Promote / Feature'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: listing.isFeatured ? Colors.grey : kAppWarningColor,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                    ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, color: kAppErrorColor),
-                                    onPressed: () => _deleteListing(listing),
-                                  ),
-                                ],
+                                ),
+                              ),
+                              const SizedBox(width: 20),
+                              Expanded(
+                                child: _buildListingCardDetails(listing, isMobile),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
                   ),
                 );
               },
             ),
         ],
-      ),
+      );
+  }
+
+  Widget _buildListingCardDetails(CarListing listing, bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        isMobile
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(listing.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _buildStatusChip(listing.approvalStatus),
+                      if (listing.isFeatured)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
+                          child: Chip(
+                            label: const Text('FEATURED', style: TextStyle(fontSize: 10, color: Colors.white)),
+                            backgroundColor: kAppWarningColor,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Text(listing.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(width: 12),
+                  _buildStatusChip(listing.approvalStatus),
+                  if (listing.isFeatured)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: Chip(
+                        label: const Text('FEATURED', style: TextStyle(fontSize: 10, color: Colors.white)),
+                        backgroundColor: kAppWarningColor,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                ],
+              ),
+        const SizedBox(height: 8),
+        Text('Owner: ${listing.ownerName}'),
+        Text('(${listing.ownerEmail})', style: const TextStyle(fontSize: 12, color: kAppMutedTextColor)),
+        Text('Package: ${listing.packageType} • Channel: ${listing.status}'),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _selectedCarListing = listing;
+                  _selectedPage = AppPage.listingDetails;
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueGrey,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('View Details'),
+            ),
+            if (listing.approvalStatus == 'Pending')
+              ElevatedButton(
+                onPressed: () => _updateListing(listing.copyWith(approvalStatus: 'Approved')),
+                style: ElevatedButton.styleFrom(backgroundColor: kAppSuccessColor, foregroundColor: Colors.white),
+                child: const Text('Approve'),
+              ),
+            if (listing.approvalStatus == 'Pending')
+              OutlinedButton(
+                onPressed: () => _updateListing(listing.copyWith(approvalStatus: 'Rejected')),
+                child: const Text('Reject'),
+              ),
+            if (listing.approvalStatus == 'Approved')
+              ElevatedButton.icon(
+                onPressed: () => _updateListing(listing.copyWith(isFeatured: !listing.isFeatured)),
+                icon: Icon(listing.isFeatured ? Icons.star : Icons.star_border),
+                label: Text(listing.isFeatured ? 'Unfeature' : 'Promote / Feature'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: listing.isFeatured ? Colors.grey : kAppWarningColor,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: kAppErrorColor),
+              onPressed: () => _deleteListing(listing),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1753,118 +1814,153 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildAdminUsersTab() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Manage Registered Users', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          ..._users.map((user) {
+    final isMobile = _isMobile(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Manage Registered Users', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        ..._users.map((user) {
             final index = _users.indexOf(user);
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: Padding(
                 padding: const EdgeInsets.all(14.0),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: kAppPrimaryColor,
-                      child: Icon(Icons.person, color: Colors.white),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
+                child: isMobile
+                    ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text(user.email, style: const TextStyle(color: kAppMutedTextColor)),
-                          Text(user.phone, style: const TextStyle(color: kAppMutedTextColor, fontSize: 12)),
-                          Text('Listings: ${user.listingCount}', style: const TextStyle(color: kAppMutedTextColor, fontSize: 12)),
                           Row(
                             children: [
-                              Chip(
-                                label: Text(user.isAdmin ? 'ADMIN' : 'USER', style: const TextStyle(fontSize: 10)),
-                                backgroundColor: user.isAdmin ? kAppPrimaryColor.withOpacity(0.18) : Colors.grey.shade100,
-                                visualDensity: VisualDensity.compact,
+                              const CircleAvatar(
+                                backgroundColor: kAppPrimaryColor,
+                                child: Icon(Icons.person, color: Colors.white),
                               ),
-                              const SizedBox(width: 8),
-                              Chip(
-                                label: Text(user.active ? 'ACTIVE' : 'INACTIVE', style: const TextStyle(fontSize: 10)),
-                                backgroundColor: user.active ? kAppSuccessColor.withOpacity(0.18) : kAppErrorColor.withOpacity(0.18),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              const SizedBox(width: 8),
-                              Chip(
-                                label: Text(user.hasPaidSubscription ? 'SUBSCRIBED' : 'NOT SUBSCRIBED', style: const TextStyle(fontSize: 10)),
-                                backgroundColor: user.hasPaidSubscription ? kAppSuccessColor.withOpacity(0.18) : Colors.orange.withOpacity(0.18),
-                                visualDensity: VisualDensity.compact,
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    Text(user.email, style: const TextStyle(color: kAppMutedTextColor)),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
+                          const SizedBox(height: 12),
+                          _buildUserCardDetails(user, isMobile),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const CircleAvatar(
+                            backgroundColor: kAppPrimaryColor,
+                            child: Icon(Icons.person, color: Colors.white),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildUserCardDetails(user, isMobile),
+                          ),
                         ],
                       ),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () => _updateUser(user.copyWith(active: !user.active)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: user.active ? kAppErrorColor.withOpacity(0.12) : kAppSuccessColor.withOpacity(0.12),
-                            foregroundColor: user.active ? kAppErrorColor : kAppSuccessColor,
-                            elevation: 0,
-                          ),
-                          child: Text(user.active ? 'Deactivate' : 'Activate'),
-                        ),
-                        if (user.email != 'admin@groundedcars.co.ke')
-                          OutlinedButton(
-                            onPressed: () => _updateUser(user.copyWith(isAdmin: !user.isAdmin)),
-                            child: Text(user.isAdmin ? 'Demote' : 'Promote'),
-                          ),
-                        if (user.email != 'admin@groundedcars.co.ke')
-                          OutlinedButton(
-                            onPressed: () {
-                              final isActivating = !user.hasPaidSubscription;
-                              _updateUser(user.copyWith(
-                                hasPaidSubscription: isActivating,
-                                subscriptionStartDate: isActivating ? DateTime.now() : null,
-                                monthlyListingCount: isActivating ? 0 : user.monthlyListingCount,
-                              ));
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: user.hasPaidSubscription ? Colors.orange : kAppSuccessColor,
-                              side: BorderSide(color: user.hasPaidSubscription ? Colors.orange : kAppSuccessColor),
-                            ),
-                            child: Text(user.hasPaidSubscription ? 'Revoke Premium' : 'Activate Premium'),
-                          ),
-                        if (user.email != 'admin@groundedcars.co.ke')
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: kAppErrorColor),
-                            onPressed: () => _deleteUser(user),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
               ),
             );
           }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildUserCardDetails(User user, bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!isMobile) ...[
+          Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(user.email, style: const TextStyle(color: kAppMutedTextColor)),
         ],
-      ),
+        Text(user.phone, style: const TextStyle(color: kAppMutedTextColor, fontSize: 12)),
+        Text('Listings: ${user.listingCount}', style: const TextStyle(color: kAppMutedTextColor, fontSize: 12)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            Chip(
+              label: Text(user.isAdmin ? 'ADMIN' : 'USER', style: const TextStyle(fontSize: 10)),
+              backgroundColor: user.isAdmin ? kAppPrimaryColor.withOpacity(0.18) : Colors.grey.shade100,
+              visualDensity: VisualDensity.compact,
+            ),
+            Chip(
+              label: Text(user.active ? 'ACTIVE' : 'INACTIVE', style: const TextStyle(fontSize: 10)),
+              backgroundColor: user.active ? kAppSuccessColor.withOpacity(0.18) : kAppErrorColor.withOpacity(0.18),
+              visualDensity: VisualDensity.compact,
+            ),
+            Chip(
+              label: Text(user.hasPaidSubscription ? 'SUBSCRIBED' : 'NOT SUBSCRIBED', style: const TextStyle(fontSize: 10)),
+              backgroundColor: user.hasPaidSubscription ? kAppSuccessColor.withOpacity(0.18) : Colors.orange.withOpacity(0.18),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ElevatedButton(
+              onPressed: () => _updateUser(user.copyWith(active: !user.active)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: user.active ? kAppErrorColor.withOpacity(0.12) : kAppSuccessColor.withOpacity(0.12),
+                foregroundColor: user.active ? kAppErrorColor : kAppSuccessColor,
+                elevation: 0,
+              ),
+              child: Text(user.active ? 'Deactivate' : 'Activate'),
+            ),
+            if (user.email != 'admin@groundedcars.co.ke')
+              OutlinedButton(
+                onPressed: () => _updateUser(user.copyWith(isAdmin: !user.isAdmin)),
+                child: Text(user.isAdmin ? 'Demote' : 'Promote'),
+              ),
+            if (user.email != 'admin@groundedcars.co.ke')
+              OutlinedButton(
+                onPressed: () {
+                  final isActivating = !user.hasPaidSubscription;
+                  _updateUser(user.copyWith(
+                    hasPaidSubscription: isActivating,
+                    subscriptionStartDate: isActivating ? DateTime.now() : null,
+                    monthlyListingCount: isActivating ? 0 : user.monthlyListingCount,
+                  ));
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: user.hasPaidSubscription ? Colors.orange : kAppSuccessColor,
+                  side: BorderSide(color: user.hasPaidSubscription ? Colors.orange : kAppSuccessColor),
+                ),
+                child: Text(user.hasPaidSubscription ? 'Revoke Premium' : 'Activate Premium'),
+              ),
+            if (user.email != 'admin@groundedcars.co.ke')
+              IconButton(
+                icon: const Icon(Icons.delete, color: kAppErrorColor),
+                onPressed: () => _deleteUser(user),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
   Widget _buildAdminServiceRequestsTab() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Manage Service Requests', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          if (_serviceRequests.isEmpty)
-            const Card(child: Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No service requests found'))))
-          else
-            ..._serviceRequests.map((request) {
+    final isMobile = _isMobile(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Manage Service Requests', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        if (_serviceRequests.isEmpty)
+          const Card(child: Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No service requests found'))))
+        else
+          ..._serviceRequests.map((request) {
               final index = _serviceRequests.indexOf(request);
               return Card(
                 margin: const EdgeInsets.only(bottom: 16),
@@ -1873,44 +1969,71 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('${request.type} request', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                          _buildRequestStatusChip(request.status),
-                        ],
-                      ),
+                      isMobile
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(child: Text('${request.type} request', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
+                                    _buildRequestStatusChip(request.status),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('${request.type} request', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                _buildRequestStatusChip(request.status),
+                              ],
+                            ),
                       const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
+                      isMobile
+                          ? Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _buildDetailRow(Icons.person, 'Requester: ${request.requesterName}'),
                                 _buildDetailRow(Icons.phone, 'Contact: ${request.requesterPhone}'),
                                 _buildDetailRow(Icons.email, 'Email: ${request.requesterEmail}'),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                                const SizedBox(height: 8),
                                 _buildDetailRow(Icons.directions_car, 'Car: ${request.carDetails}'),
                                 _buildDetailRow(Icons.location_on, 'Location: ${request.location}'),
                                 _buildDetailRow(Icons.calendar_today, 'Preferred: ${request.preferredDateTime}'),
                               ],
+                            )
+                          : Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _buildDetailRow(Icons.person, 'Requester: ${request.requesterName}'),
+                                      _buildDetailRow(Icons.phone, 'Contact: ${request.requesterPhone}'),
+                                      _buildDetailRow(Icons.email, 'Email: ${request.requesterEmail}'),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _buildDetailRow(Icons.directions_car, 'Car: ${request.carDetails}'),
+                                      _buildDetailRow(Icons.location_on, 'Location: ${request.location}'),
+                                      _buildDetailRow(Icons.calendar_today, 'Preferred: ${request.preferredDateTime}'),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
                       const Divider(height: 24),
                       Text('Description: ${request.description}', style: const TextStyle(color: kAppMutedTextColor)),
                       const SizedBox(height: 16),
                       Wrap(
                         spacing: 12,
+                        runSpacing: 8,
                         children: [
                           if (request.status == 'Assigned')
                             ElevatedButton(
@@ -1939,8 +2062,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 ),
               );
             }).toList(),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1972,39 +2094,57 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildAdminPackagesTab() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Listing Packages', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Show dialog to add package
-                  _showPackageDialog();
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Add New Package'),
+    final isMobile = _isMobile(context);
+    final width = MediaQuery.of(context).size.width;
+    int crossAxisCount = 3;
+    if (width < 600) {
+      crossAxisCount = 1;
+    } else if (width < 1000) {
+      crossAxisCount = 2;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        isMobile
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Listing Packages', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => _showPackageDialog(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add New Package'),
+                  ),
+                ],
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Listing Packages', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  ElevatedButton.icon(
+                    onPressed: () => _showPackageDialog(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add New Package'),
+                  ),
+                ],
               ),
-            ],
+        const SizedBox(height: 16),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: isMobile ? 2.0 : 1.5,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
           ),
-          const SizedBox(height: 16),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 1.5,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-            itemCount: _listingPackages.length,
-            itemBuilder: (context, index) {
+          itemCount: _listingPackages.length,
+          itemBuilder: (context, index) {
               final pkg = _listingPackages[index];
               return Card(
-                color: pkg.isFeatured ? kAppSecondaryColor : kAppCardColor,
+                color: pkg.isFeatured ? const Color(0xFFEAF4FF) : Colors.grey.shade100,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(color: pkg.isFeatured ? kAppLightAccentColor : Colors.white12),
@@ -2017,14 +2157,14 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                          Expanded(child: Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black))),
                           if (pkg.isFeatured) const Icon(Icons.star, color: kAppWarningColor, size: 20),
                         ],
                       ),
                       const SizedBox(height: 8),
                       Text(pkg.price, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kAppPrimaryColor)),
                       const SizedBox(height: 4),
-                      Text(pkg.description, style: const TextStyle(fontSize: 12, color: Colors.white70), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      Text(pkg.description, style: const TextStyle(fontSize: 12, color: Colors.black), maxLines: 2, overflow: TextOverflow.ellipsis),
                       const Spacer(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
@@ -2047,8 +2187,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               );
             },
           ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -2112,6 +2251,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
   }
 
   Widget _buildAdminPaymentsTab() {
+    final isMobile = _isMobile(context);
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2120,6 +2260,37 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           const SizedBox(height: 16),
           if (_paymentRecords.isEmpty)
             const Card(child: Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No payment records found'))))
+          else if (isMobile)
+            ..._paymentRecords.map((payment) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(child: Text(payment.userEmail, style: const TextStyle(fontWeight: FontWeight.bold))),
+                          _buildPaymentStatusBadge(payment.status),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Package: ${payment.packageName}', style: const TextStyle(color: kAppMutedTextColor)),
+                          Text(payment.amount, style: const TextStyle(fontWeight: FontWeight.bold, color: kAppPrimaryColor)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Date: ${payment.date}', style: const TextStyle(fontSize: 12, color: kAppMutedTextColor)),
+                    ],
+                  ),
+                ),
+              );
+            }).toList()
           else
             Card(
               child: SizedBox(
@@ -2138,16 +2309,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                       DataCell(Text(payment.packageName)),
                       DataCell(Text(payment.amount)),
                       DataCell(Text(payment.date)),
-                      DataCell(
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: payment.status == 'Completed' ? kAppSuccessColor.withOpacity(0.18) : kAppWarningColor.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(payment.status, style: TextStyle(color: payment.status == 'Completed' ? kAppSuccessColor : kAppWarningColor, fontSize: 12, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
+                      DataCell(_buildPaymentStatusBadge(payment.status)),
                     ]);
                   }).toList(),
                 ),
@@ -2155,6 +2317,17 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPaymentStatusBadge(String status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: status == 'Completed' ? kAppSuccessColor.withOpacity(0.18) : kAppWarningColor.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(status, style: TextStyle(color: status == 'Completed' ? kAppSuccessColor : kAppWarningColor, fontSize: 12, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -3754,21 +3927,24 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     );
   }
 
-  Widget _buildAdminSummaryCard(String title, String value, String subtitle) {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppPrimaryColor)),
-            const SizedBox(height: 8),
-            Text(subtitle, style: const TextStyle(color: kAppMutedTextColor)),
-          ],
+  Widget _buildAdminSummaryCard(String title, String value, String subtitle, {double? width}) {
+    return SizedBox(
+      width: width,
+      child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAppPrimaryColor)),
+              const SizedBox(height: 8),
+              Text(subtitle, style: const TextStyle(color: kAppMutedTextColor)),
+            ],
+          ),
         ),
       ),
     );
