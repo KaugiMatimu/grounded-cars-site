@@ -1411,7 +1411,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
-                  items: (_isAdminUser ? ['For Sale', 'For Hire', 'Grounded Car'] : ['For Sale', 'Grounded Car'])
+                  items: (_isAdminUser ? ['For Sale', 'For Hire', 'Grounded Car', 'Sold'] : ['For Sale', 'Grounded Car', 'Sold'])
                       .map((status) => DropdownMenuItem(value: status, child: Text(status)))
                       .toList(),
                   onChanged: (value) {
@@ -1456,74 +1456,97 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          if (_listings.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text('No listings have been created yet.', style: TextStyle(color: kAppBodyTextColor)),
-            )
-          else
-            GridView.count(
-              crossAxisCount: _responsiveColumns(context, desktop: 4),
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.75,
-              children: _listings.map((listing) => Card(
-                    color: kAppCardColor,
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (listing.imageUrls.isNotEmpty)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: SizedBox(
-                                height: 120,
-                                width: double.infinity,
-                                child: _ImageSlider(imageUrls: listing.imageUrls),
+          Builder(
+            builder: (context) {
+              final userListings = _listings.where((listing) => listing.ownerUid == _currentUser?.uid).toList();
+              
+              if (userListings.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Text('No listings have been created yet.', style: TextStyle(color: kAppBodyTextColor)),
+                );
+              }
+
+              return GridView.count(
+                crossAxisCount: _responsiveColumns(context, desktop: 4),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.75,
+                children: userListings.map((listing) => Card(
+                      color: kAppCardColor,
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (listing.imageUrls.isNotEmpty)
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: SizedBox(
+                                  height: 120,
+                                  width: double.infinity,
+                                  child: _ImageSlider(imageUrls: listing.imageUrls),
+                                ),
                               ),
-                            ),
-                          if (listing.imageUrls.isNotEmpty) const SizedBox(height: 12),
-                          Text(listing.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: 8),
-                          Text('${listing.year} ${listing.make} ${listing.model}', style: const TextStyle(fontSize: 13, color: kAppBodyTextColor), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: 8),
-                          Text('Status: ${listing.status}', style: const TextStyle(fontSize: 13)),
-                          Text('Package: ${listing.packageType}', style: const TextStyle(fontSize: 13)),
-                          if (listing.isFeatured)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 4),
-                              child: Text('Featured listing', style: TextStyle(color: kAppPrimaryColor, fontWeight: FontWeight.w600, fontSize: 13)),
-                            ),
-                          const SizedBox(height: 8),
-                          Text('Price: ${listing.price}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                          const SizedBox(height: 4),
-                          Text('Mileage: ${listing.mileage}', style: const TextStyle(fontSize: 13)),
-                          Text('Condition: ${listing.condition}', style: const TextStyle(fontSize: 13)),
-                          const Spacer(),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Contact: ${listing.ownerPhone}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                              TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _selectedCarListing = listing;
-                                    _selectedPage = AppPage.listingDetails;
-                                  });
-                                },
-                                child: const Text('View Details'),
+                            if (listing.imageUrls.isNotEmpty) const SizedBox(height: 12),
+                            Text(listing.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 8),
+                            Text('${listing.year} ${listing.make} ${listing.model}', style: const TextStyle(fontSize: 13, color: kAppBodyTextColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 8),
+                            Text('Status: ${listing.status}', style: const TextStyle(fontSize: 13)),
+                            Text('Package: ${listing.packageType}', style: const TextStyle(fontSize: 13)),
+                            if (listing.isFeatured)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: Text('Featured listing', style: TextStyle(color: kAppPrimaryColor, fontWeight: FontWeight.w600, fontSize: 13)),
                               ),
-                            ],
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Text('Price: ${listing.price}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                            const SizedBox(height: 4),
+                            Text('Mileage: ${listing.mileage}', style: const TextStyle(fontSize: 13)),
+                            Text('Condition: ${listing.condition}', style: const TextStyle(fontSize: 13)),
+                            const Spacer(),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(child: Text('Contact: ${listing.ownerPhone}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11), overflow: TextOverflow.ellipsis)),
+                                Row(
+                                  children: [
+                                    if (listing.status != 'Sold')
+                                      IconButton(
+                                        icon: const Icon(Icons.check_circle_outline, size: 20, color: kAppSuccessColor),
+                                        tooltip: 'Mark as Sold',
+                                        onPressed: () => _updateListing(listing.copyWith(status: 'Sold')),
+                                      ),
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, size: 20, color: kAppPrimaryColor),
+                                      tooltip: 'Edit',
+                                      onPressed: () => _editListing(listing),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.visibility, size: 20, color: Colors.blueGrey),
+                                      tooltip: 'View Details',
+                                      onPressed: () {
+                                        setState(() {
+                                          _selectedCarListing = listing;
+                                          _selectedPage = AppPage.listingDetails;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  )).toList(),
-            )
+                    )).toList(),
+              );
+            }
+          )
         ],
       ),
     );
@@ -1749,8 +1772,21 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
               ),
         const SizedBox(height: 8),
         Text('Owner: ${listing.ownerName}'),
-        Text('(${listing.ownerEmail})', style: const TextStyle(fontSize: 12, color: kAppMutedTextColor)),
-        Text('Package: ${listing.packageType} • Channel: ${listing.status}'),
+        Text('(${listing.ownerPhone})', style: const TextStyle(fontSize: 12, color: kAppMutedTextColor)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text('Package: ${listing.packageType} • Channel: '),
+            if (listing.status == 'Sold')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: kAppSuccessColor, borderRadius: BorderRadius.circular(4)),
+                child: const Text('SOLD', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              )
+            else
+              Text(listing.status),
+          ],
+        ),
         const SizedBox(height: 12),
         Wrap(
           spacing: 12,
@@ -1768,6 +1804,15 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 foregroundColor: Colors.white,
               ),
               child: const Text('View Details'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => _editListing(listing),
+              icon: const Icon(Icons.edit),
+              label: const Text('Edit Details'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAppPrimaryColor,
+                foregroundColor: Colors.white,
+              ),
             ),
             if (listing.approvalStatus == 'Pending')
               ElevatedButton(
@@ -1787,6 +1832,16 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                 label: Text(listing.isFeatured ? 'Unfeature' : 'Promote / Feature'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: listing.isFeatured ? Colors.grey : kAppWarningColor,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            if (listing.status != 'Sold')
+              ElevatedButton.icon(
+                onPressed: () => _updateListing(listing.copyWith(status: 'Sold')),
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Mark as Sold'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kAppSuccessColor,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -3383,6 +3438,35 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     }
   }
 
+  void _editListing(CarListing listing) {
+    setState(() {
+      _editingListingId = listing.id;
+      _listingTitleController.text = listing.title;
+      _listingMakeController.text = listing.make;
+      _listingModelController.text = listing.model;
+      _listingYearController.text = listing.year;
+      _listingPriceController.text = listing.price;
+      _listingPricePerDayController.text = listing.pricePerDay;
+      _listingMileageController.text = listing.mileage;
+      _listingConditionController.text = listing.condition;
+      _listingTransmissionController.text = listing.transmission;
+      _listingFuelController.text = listing.fuelType;
+      _listingLocationController.text = listing.location;
+      _listingAvailabilityController.text = listing.availability;
+      _listingFeaturesController.text = listing.features;
+      _listingPickupLocationController.text = listing.pickupLocation;
+      _listingDeliveryOptionController.text = listing.deliveryOption;
+      _listingStatusController.text = listing.status;
+      _listingDescriptionController.text = listing.description;
+      _listingImageUrls.clear();
+      _listingImageUrls.addAll(listing.imageUrls);
+      _selectedListingPackage = listing.packageType;
+      _selectedPage = AppPage.manageListings;
+    });
+    // Scroll to top of the form
+    _scaffoldKey.currentState?.openEndDrawer(); // Just to trigger a small UI change if needed
+  }
+
   void _submitListingForm() {
     if (_isUploadingImages) {
       if (mounted) {
@@ -3399,7 +3483,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
     bool canList = false;
     String errorMessage = '';
 
-    if (_currentUser!.listingCount < 10) {
+    if (_editingListingId != null) {
+      canList = true; // Always allow editing existing listings
+    } else if (_currentUser!.listingCount < 10) {
       canList = true;
     } else if (_currentUser!.hasPaidSubscription) {
       if (_currentUser!.subscriptionStartDate != null) {
@@ -3446,39 +3532,46 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
       return;
     }
 
-    final newListing = CarListing(
-      title: _listingTitleController.text.trim(),
-      status: _listingStatusController.text.trim(),
-      approvalStatus: 'Pending',
-      packageType: selectedPackage.name,
-      isFeatured: selectedPackage.isFeatured,
-      listingDurationDays: selectedPackage.durationDays,
-      make: _listingMakeController.text.trim(),
-      model: _listingModelController.text.trim(),
-      year: _listingYearController.text.trim(),
-      price: _listingPriceController.text.trim(),
-      pricePerDay: _listingPricePerDayController.text.trim(),
-      mileage: _listingMileageController.text.trim(),
-      condition: _listingConditionController.text.trim(),
-      transmission: _listingTransmissionController.text.trim(),
-      fuelType: _listingFuelController.text.trim(),
-      location: _listingLocationController.text.trim(),
-      availability: _listingAvailabilityController.text.trim(),
-      features: _listingFeaturesController.text.trim(),
-      pickupLocation: _listingPickupLocationController.text.trim(),
-      deliveryOption: _listingDeliveryOptionController.text.trim(),
-      description: _listingDescriptionController.text.trim(),
-      imageUrls: List<String>.from(_listingImageUrls),
-      ownerName: _currentUser!.fullName,
-      ownerPhone: _currentUser!.phone,
-      ownerEmail: _currentUser!.email,
-      ownerUid: _currentUser!.uid,
-    );
+    final Map<String, dynamic> listingData = {
+      'title': _listingTitleController.text.trim(),
+      'status': _listingStatusController.text.trim(),
+      'approvalStatus': _editingListingId != null ? 'Approved' : 'Pending',
+      'packageType': selectedPackage.name,
+      'isFeatured': selectedPackage.isFeatured,
+      'listingDurationDays': selectedPackage.durationDays,
+      'make': _listingMakeController.text.trim(),
+      'model': _listingModelController.text.trim(),
+      'year': _listingYearController.text.trim(),
+      'price': _listingPriceController.text.trim(),
+      'pricePerDay': _listingPricePerDayController.text.trim(),
+      'mileage': _listingMileageController.text.trim(),
+      'condition': _listingConditionController.text.trim(),
+      'transmission': _listingTransmissionController.text.trim(),
+      'fuelType': _listingFuelController.text.trim(),
+      'location': _listingLocationController.text.trim(),
+      'availability': _listingAvailabilityController.text.trim(),
+      'features': _listingFeaturesController.text.trim(),
+      'pickupLocation': _listingPickupLocationController.text.trim(),
+      'deliveryOption': _listingDeliveryOptionController.text.trim(),
+      'description': _listingDescriptionController.text.trim(),
+      'imageUrls': List<String>.from(_listingImageUrls),
+    };
 
-    FirebaseFirestore.instance.collection('listings').add(newListing.toMap()).then((_) {
+    if (_editingListingId == null) {
+      listingData['ownerName'] = _currentUser!.fullName;
+      listingData['ownerPhone'] = _currentUser!.phone;
+      listingData['ownerEmail'] = _currentUser!.email;
+      listingData['ownerUid'] = _currentUser!.uid;
+    }
+
+    final Future<void> operation = _editingListingId != null
+        ? FirebaseFirestore.instance.collection('listings').doc(_editingListingId!).update(listingData)
+        : FirebaseFirestore.instance.collection('listings').add(listingData).then((_) {});
+
+    operation.then((_) {
       _fetchListings();
-      // Update user listing count
-      if (_currentUser != null) {
+      // Update user listing count ONLY for new listings
+      if (_editingListingId == null && _currentUser != null) {
         int newListingCount = _currentUser!.listingCount + 1;
         int newMonthlyCount = _currentUser!.monthlyListingCount;
         DateTime? newSubStartDate = _currentUser!.subscriptionStartDate;
@@ -3521,7 +3614,9 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
         }
       }
       if (mounted) {
+        final bool wasEditing = _editingListingId != null;
         setState(() {
+          _editingListingId = null;
           _listingTitleController.clear();
           _listingMakeController.clear();
           _listingModelController.clear();
@@ -3542,7 +3637,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
           _listingImageUrlController.clear();
           _listingImageUrls.clear();
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Listing saved and pending approval.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(wasEditing ? 'Listing updated successfully.' : 'Listing saved and pending approval.')));
       }
     }).catchError((e) {
       if (mounted) {
@@ -4657,7 +4752,7 @@ class _GroundedCarsHomePageState extends State<GroundedCarsHomePage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: tag == 'For Sale' ? kAppSuccessColor : kAppPrimaryColor,
+                        color: (tag == 'For Sale' || tag == 'Sold') ? kAppSuccessColor : kAppPrimaryColor,
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
